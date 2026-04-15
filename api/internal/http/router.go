@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
+	"github.com/haywardsolutions/backlog/api/internal/auth"
 	"github.com/haywardsolutions/backlog/api/internal/domain"
 	"github.com/haywardsolutions/backlog/api/internal/events"
 	"github.com/haywardsolutions/backlog/api/internal/http/handlers"
@@ -13,7 +14,7 @@ import (
 	"github.com/haywardsolutions/backlog/api/internal/store"
 )
 
-func NewRouter(s *store.Store, hub *events.Hub) http.Handler {
+func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, publicBaseURL string) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
@@ -21,7 +22,8 @@ func NewRouter(s *store.Store, hub *events.Hub) http.Handler {
 	r.Use(chimw.Recoverer)
 	r.Use(corsForDev)
 
-	auth := &handlers.AuthHandler{Store: s}
+	authH := &handlers.AuthHandler{Store: s}
+	oidcH := &handlers.OIDCHandler{Store: s, Config: oidcCfg, PublicURL: publicBaseURL}
 	admin := &handlers.AdminHandler{Store: s}
 	teamH := &handlers.TeamHandler{Store: s}
 	labelH := &handlers.LabelHandler{Store: s}
@@ -35,14 +37,17 @@ func NewRouter(s *store.Store, hub *events.Hub) http.Handler {
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Post("/auth/login", auth.Login)
+		r.Post("/auth/login", authH.Login)
+		r.Get("/auth/oidc/config", oidcH.ConfigInfo)
+		r.Get("/auth/oidc/login", oidcH.Login)
+		r.Get("/auth/oidc/callback", oidcH.Callback)
 		// invite accept (authed but no team-role)
 		r.Group(func(r chi.Router) {
 			r.Use(mw.RequireAuth(s))
-			r.Post("/auth/logout", auth.Logout)
-			r.Get("/auth/me", auth.Me)
-			r.Patch("/auth/me", auth.UpdateMe)
-			r.Post("/auth/change-password", auth.ChangePassword)
+			r.Post("/auth/logout", authH.Logout)
+			r.Get("/auth/me", authH.Me)
+			r.Patch("/auth/me", authH.UpdateMe)
+			r.Post("/auth/change-password", authH.ChangePassword)
 			r.Post("/invites/{token}/accept", teamH.AcceptInvite)
 		})
 

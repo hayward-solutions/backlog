@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pressly/goose/v3"
 
+	"github.com/haywardsolutions/backlog/api/internal/auth"
 	"github.com/haywardsolutions/backlog/api/internal/bootstrap"
 	"github.com/haywardsolutions/backlog/api/internal/events"
 	apphttp "github.com/haywardsolutions/backlog/api/internal/http"
@@ -56,9 +57,19 @@ func main() {
 		log.Fatalf("bootstrap: %v", err)
 	}
 
+	oidcCfg, err := auth.LoadOIDCFromEnv(context.Background())
+	if err != nil {
+		log.Fatalf("oidc: %v", err)
+	}
+	if oidcCfg != nil {
+		log.Printf("oidc enabled (provider=%s, admin_group=%q, groups_claim=%q)",
+			oidcCfg.ProviderName, oidcCfg.AdminGroup, oidcCfg.GroupsClaim)
+	}
+	publicBaseURL := envOr("PUBLIC_BASE_URL", "")
+
 	srv := &nethttp.Server{
 		Addr:              ":" + port,
-		Handler:           apphttp.NewRouter(s, hub),
+		Handler:           apphttp.NewRouter(s, hub, oidcCfg, publicBaseURL),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -20,10 +20,39 @@ const (
 	argonSaltLen = 16
 )
 
+// ErrWeakPassword is returned when a password fails the policy check.
+var ErrWeakPassword = errors.New("password must be at least 12 characters and include upper, lower, digit, and symbol")
+
+// ValidatePassword enforces the password policy used by all password-setting
+// code paths (signup, admin set, change-password). Centralised so tests and
+// callers can re-use the same rule.
+func ValidatePassword(password string) error {
+	if len(password) < 12 {
+		return ErrWeakPassword
+	}
+	var hasUpper, hasLower, hasDigit, hasSymbol bool
+	for _, r := range password {
+		switch {
+		case r >= 'A' && r <= 'Z':
+			hasUpper = true
+		case r >= 'a' && r <= 'z':
+			hasLower = true
+		case r >= '0' && r <= '9':
+			hasDigit = true
+		case r > 32 && r < 127:
+			hasSymbol = true
+		}
+	}
+	if !(hasUpper && hasLower && hasDigit && hasSymbol) {
+		return ErrWeakPassword
+	}
+	return nil
+}
+
 // HashPassword returns an encoded argon2id hash.
 func HashPassword(password string) (string, error) {
-	if len(password) < 8 {
-		return "", errors.New("password must be at least 8 characters")
+	if err := ValidatePassword(password); err != nil {
+		return "", err
 	}
 	salt := make([]byte, argonSaltLen)
 	if _, err := rand.Read(salt); err != nil {

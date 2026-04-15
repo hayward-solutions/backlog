@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -38,7 +37,7 @@ func (h *TeamHandler) List(w http.ResponseWriter, r *http.Request) {
 		teams, err = h.Store.ListTeamsForUser(r.Context(), u.ID)
 	}
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to list teams")
 		return
 	}
 	writeJSON(w, http.StatusOK, teams)
@@ -68,7 +67,7 @@ func (h *TeamHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.Store.UpdateTeam(r.Context(), id, body.Name); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to update team")
 		return
 	}
 	t, _ := h.Store.GetTeam(r.Context(), id)
@@ -78,7 +77,7 @@ func (h *TeamHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *TeamHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, _ := urlUUID(r, "teamID")
 	if err := h.Store.DeleteTeam(r.Context(), id); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to delete team")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -90,7 +89,7 @@ func (h *TeamHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 	id, _ := urlUUID(r, "teamID")
 	m, err := h.Store.ListMembers(r.Context(), id)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to list members")
 		return
 	}
 	writeJSON(w, http.StatusOK, m)
@@ -124,7 +123,7 @@ func (h *TeamHandler) UpdateMember(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := h.Store.UpdateMemberRole(r.Context(), teamID, userID, body.Role); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to update member role")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -146,7 +145,7 @@ func (h *TeamHandler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := h.Store.RemoveMember(r.Context(), teamID, userID); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to remove member")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -184,7 +183,7 @@ func (h *TeamHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: time.Now().UTC(),
 	}
 	if err := h.Store.CreateInvite(r.Context(), inv, hash); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to create invite")
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{
@@ -197,7 +196,7 @@ func (h *TeamHandler) ListInvites(w http.ResponseWriter, r *http.Request) {
 	teamID, _ := urlUUID(r, "teamID")
 	inv, err := h.Store.ListInvites(r.Context(), teamID)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to list invites")
 		return
 	}
 	writeJSON(w, http.StatusOK, inv)
@@ -221,14 +220,18 @@ func (h *TeamHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	u, _ := mw.UserFrom(r.Context())
-	// Optional: enforce email matches u.Email. Soft-check for v1.
-	_ = errors.New
+	// The invited email must match the authenticated user. Otherwise any
+	// holder of the raw token could join as someone else's role.
+	if !strings.EqualFold(strings.TrimSpace(u.Email), strings.TrimSpace(inv.Email)) {
+		httpErr(w, http.StatusForbidden, "invite email mismatch")
+		return
+	}
 	if err := h.Store.AddMember(r.Context(), inv.TeamID, u.ID, inv.Role); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to add member")
 		return
 	}
 	if err := h.Store.AcceptInvite(r.Context(), inv.ID); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to accept invite")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"team_id": inv.TeamID, "role": inv.Role})

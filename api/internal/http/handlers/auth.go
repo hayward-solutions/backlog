@@ -46,17 +46,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt: time.Now().Add(30 * 24 * time.Hour).UTC(),
 	}
 	if err := h.Store.CreateSession(r.Context(), sess); err != nil {
-		httpErr(w, http.StatusInternalServerError, "session create failed")
+		internalErr(w, r, err, "session create failed")
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     mw.SessionCookie,
-		Value:    sess.ID.String(),
-		Path:     "/",
-		Expires:  sess.ExpiresAt,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
+	http.SetCookie(w, mw.NewSessionCookie(sess.ID.String(), sess.ExpiresAt))
 	writeJSON(w, http.StatusOK, u)
 }
 
@@ -65,14 +58,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		_ = h.Store.DeleteSession(r.Context(), sid)
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     mw.SessionCookie,
-		Value:    "",
-		Path:     "/",
-		Expires:  time.Unix(0, 0),
-		MaxAge:   -1,
-		HttpOnly: true,
-	})
+	http.SetCookie(w, mw.ClearSessionCookie())
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -104,12 +90,12 @@ func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		body.Email = &lower
 	}
 	if err := h.Store.UpdateUserProfile(r.Context(), u.ID, body.Email, body.DisplayName, nil); err != nil {
-		httpErr(w, http.StatusBadRequest, err.Error())
+		internalErr(w, r, err, "failed to update profile")
 		return
 	}
 	nu, err := h.Store.GetUser(r.Context(), u.ID)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to load user")
 		return
 	}
 	writeJSON(w, http.StatusOK, nu)
@@ -125,13 +111,17 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		CurrentPassword string `json:"current_password"`
 		NewPassword     string `json:"new_password"`
 	}
-	if err := readJSON(r, &body); err != nil || body.NewPassword == "" {
+	if err := readJSON(r, &body); err != nil {
 		httpErr(w, http.StatusBadRequest, "bad body")
+		return
+	}
+	if err := auth.ValidatePassword(body.NewPassword); err != nil {
+		httpErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	_, hash, err := h.Store.GetUserByEmail(r.Context(), u.Email)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to load user")
 		return
 	}
 	okPw, err := auth.VerifyPassword(body.CurrentPassword, hash)
@@ -145,7 +135,7 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.Store.SetUserPassword(r.Context(), u.ID, newHash); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to set password")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

@@ -40,6 +40,19 @@ export default function AdminUsersPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
 
+  // Password reset modal state — replaces prompt() which displays the
+  // password in plaintext and stores it in browser history.
+  const [resetTarget, setResetTarget] = useState<{ id: string; label: string } | null>(null);
+  const [resetPw, setResetPw] = useState("");
+  const [resetErr, setResetErr] = useState<string | null>(null);
+  const MIN_PW_LEN = 12;
+  const pwPolicyOk =
+    resetPw.length >= MIN_PW_LEN &&
+    /[A-Z]/.test(resetPw) &&
+    /[a-z]/.test(resetPw) &&
+    /[0-9]/.test(resetPw) &&
+    /[^A-Za-z0-9]/.test(resetPw);
+
   const createUser = useMutation({
     mutationFn: () =>
       api<User>("/admin/users", {
@@ -73,14 +86,25 @@ export default function AdminUsersPage() {
     onError: (e: Error) => alert(e.message),
   });
 
-  const resetPassword = (id: string, label: string) => {
-    const pw = prompt(`New password for ${label} (min 8 chars):`);
-    if (!pw) return;
-    if (pw.length < 8) {
-      alert("Password must be at least 8 characters.");
-      return;
-    }
-    patchUser.mutate({ id, patch: { password: pw } });
+  const openResetPassword = (id: string, label: string) => {
+    setResetTarget({ id, label });
+    setResetPw("");
+    setResetErr(null);
+  };
+
+  const submitResetPassword = () => {
+    if (!resetTarget || !pwPolicyOk) return;
+    patchUser.mutate(
+      { id: resetTarget.id, patch: { password: resetPw } },
+      {
+        onSuccess: () => {
+          setResetTarget(null);
+          setResetPw("");
+          setResetErr(null);
+        },
+        onError: (e: Error) => setResetErr(e.message),
+      },
+    );
   };
 
   return (
@@ -183,7 +207,7 @@ export default function AdminUsersPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => resetPassword(u.id, label)}
+                      onClick={() => openResetPassword(u.id, label)}
                     >
                       Reset password
                     </Button>
@@ -239,7 +263,17 @@ export default function AdminUsersPage() {
               </Button>
               <Button
                 variant="primary"
-                disabled={!email.trim() || password.length < 8 || createUser.isPending}
+                disabled={
+                  !email.trim() ||
+                  !(
+                    password.length >= MIN_PW_LEN &&
+                    /[A-Z]/.test(password) &&
+                    /[a-z]/.test(password) &&
+                    /[0-9]/.test(password) &&
+                    /[^A-Za-z0-9]/.test(password)
+                  ) ||
+                  createUser.isPending
+                }
                 onClick={() => createUser.mutate()}
               >
                 {createUser.isPending ? "Creating…" : "Create user"}
@@ -265,7 +299,10 @@ export default function AdminUsersPage() {
                 placeholder="jane@company.com"
               />
             </Field>
-            <Field label="Password" hint="At least 8 characters.">
+            <Field
+              label="Password"
+              hint="At least 12 characters with upper, lower, digit, and symbol."
+            >
               <Input
                 type="password"
                 required
@@ -286,6 +323,60 @@ export default function AdminUsersPage() {
             {createErr && (
               <div className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">
                 {createErr}
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {resetTarget && (
+        <Modal
+          title={`Reset password for ${resetTarget.label}`}
+          onClose={() => {
+            setResetTarget(null);
+            setResetPw("");
+            setResetErr(null);
+          }}
+          width={480}
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setResetTarget(null);
+                  setResetPw("");
+                  setResetErr(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                disabled={!pwPolicyOk || patchUser.isPending}
+                onClick={submitResetPassword}
+              >
+                {patchUser.isPending ? "Saving…" : "Set password"}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            <Field
+              label="New password"
+              hint="At least 12 characters with upper, lower, digit, and symbol."
+            >
+              <Input
+                type="password"
+                required
+                value={resetPw}
+                onChange={(e) => setResetPw(e.target.value)}
+                placeholder="••••••••"
+                autoFocus
+              />
+            </Field>
+            {resetErr && (
+              <div className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">
+                {resetErr}
               </div>
             )}
           </div>

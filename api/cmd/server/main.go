@@ -7,6 +7,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/haywardsolutions/backlog/api/internal/bootstrap"
 	"github.com/haywardsolutions/backlog/api/internal/events"
 	apphttp "github.com/haywardsolutions/backlog/api/internal/http"
+	mw "github.com/haywardsolutions/backlog/api/internal/http/middleware"
 	"github.com/haywardsolutions/backlog/api/internal/store"
 )
 
@@ -25,6 +27,12 @@ func main() {
 	dsn := mustEnv("POSTGRES_DSN")
 	port := envOr("API_PORT", "8080")
 	migrationsDir := envOr("MIGRATIONS_DIR", "./migrations")
+
+	// Security config. COOKIE_SECURE=true required in production so session
+	// cookies never go over plaintext HTTP. APP_ORIGINS is a comma-separated
+	// allowlist used by the CORS middleware — empty disables cross-origin.
+	mw.CookieSecure = envBool("COOKIE_SECURE", false)
+	allowedOrigins := splitAndTrim(envOr("APP_ORIGINS", ""))
 
 	// Migrations via database/sql + pgx stdlib driver.
 	sqlDB, err := sql.Open("pgx", dsn)
@@ -69,7 +77,7 @@ func main() {
 
 	srv := &nethttp.Server{
 		Addr:              ":" + port,
-		Handler:           apphttp.NewRouter(s, hub, oidcCfg, publicBaseURL),
+		Handler:           apphttp.NewRouter(s, hub, oidcCfg, publicBaseURL, allowedOrigins),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -116,4 +124,31 @@ func envOr(k, d string) string {
 		return v
 	}
 	return d
+}
+
+func envBool(k string, d bool) bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv(k)))
+	switch v {
+	case "":
+		return d
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func splitAndTrim(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

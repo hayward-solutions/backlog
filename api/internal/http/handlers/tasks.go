@@ -77,12 +77,12 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 		t.CompletedAt = &now
 	}
 	if err := h.Store.CreateTask(r.Context(), &t); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	if len(body.LabelIDs) > 0 {
 		if err := h.Store.SetTaskLabels(r.Context(), t.ID, body.LabelIDs); err != nil {
-			httpErr(w, http.StatusInternalServerError, err.Error())
+			internalErr(w, r, err, "internal error")
 			return
 		}
 		t.LabelIDs = body.LabelIDs
@@ -145,12 +145,12 @@ func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ReporterID:    body.ReporterID,
 	}
 	if err := h.Store.UpdateTask(r.Context(), id, upd); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	if body.LabelIDs != nil {
 		if err := h.Store.SetTaskLabels(r.Context(), id, *body.LabelIDs); err != nil {
-			httpErr(w, http.StatusInternalServerError, err.Error())
+			internalErr(w, r, err, "internal error")
 			return
 		}
 	}
@@ -205,7 +205,7 @@ func (h *TaskHandler) Move(w http.ResponseWriter, r *http.Request) {
 	}
 	toDone, err := h.Store.MoveTask(r.Context(), id, body.ColumnID, body.Position)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	h.writeEvent(r, id, "moved_column", map[string]any{"from": before.ColumnID, "to": body.ColumnID})
@@ -228,7 +228,7 @@ func (h *TaskHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.Store.DeleteTask(r.Context(), id); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	h.Hub.Publish(t.BoardID, events.Event{Kind: "task.deleted", BoardID: t.BoardID.String(), Payload: map[string]string{"id": id.String()}})
@@ -239,7 +239,7 @@ func (h *TaskHandler) Events(w http.ResponseWriter, r *http.Request) {
 	id, _ := urlUUID(r, "taskID")
 	es, err := h.Store.ListEvents(r.Context(), id)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	writeJSON(w, http.StatusOK, es)

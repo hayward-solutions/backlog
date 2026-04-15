@@ -33,6 +33,16 @@ func (s *Store) CountUsers(ctx context.Context) (int, error) {
 	return n, err
 }
 
+// CountActiveSystemAdmins returns the number of enabled users with the system
+// admin flag. Used to prevent operations that would leave the instance with
+// zero administrators.
+func (s *Store) CountActiveSystemAdmins(ctx context.Context) (int, error) {
+	var n int
+	err := s.Pool.QueryRow(ctx,
+		`SELECT count(*) FROM users WHERE is_system_admin = true AND disabled_at IS NULL`).Scan(&n)
+	return n, err
+}
+
 func (s *Store) GetUserByEmail(ctx context.Context, email string) (domain.User, string, error) {
 	var u domain.User
 	var hash string

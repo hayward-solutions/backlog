@@ -7,9 +7,14 @@ import (
 	"time"
 
 	"github.com/haywardsolutions/backlog/api/internal/events"
+	mw "github.com/haywardsolutions/backlog/api/internal/http/middleware"
+	"github.com/haywardsolutions/backlog/api/internal/store"
 )
 
-type StreamHandler struct{ Hub *events.Hub }
+type StreamHandler struct {
+	Hub   *events.Hub
+	Store *store.Store
+}
 
 func (h *StreamHandler) Board(w http.ResponseWriter, r *http.Request) {
 	boardID, err := urlUUID(r, "boardID")
@@ -42,6 +47,15 @@ func (h *StreamHandler) Board(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case <-heartbeat.C:
+			// Revalidate the session on each heartbeat so that a logout or
+			// expired session promptly terminates the long-lived stream.
+			if h.Store != nil {
+				if sid, ok := mw.SessionIDFrom(r.Context()); ok {
+					if _, err := h.Store.GetSession(r.Context(), sid); err != nil {
+						return
+					}
+				}
+			}
 			fmt.Fprintf(w, ": ping\n\n")
 			flusher.Flush()
 		case ev, ok := <-ch:

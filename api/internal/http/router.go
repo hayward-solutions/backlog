@@ -14,13 +14,13 @@ import (
 	"github.com/haywardsolutions/backlog/api/internal/store"
 )
 
-func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, publicBaseURL string) http.Handler {
+func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, publicBaseURL string, allowedOrigins []string) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
-	r.Use(corsForDev)
+	r.Use(corsMiddleware(allowedOrigins))
 
 	authH := &handlers.AuthHandler{Store: s}
 	oidcH := &handlers.OIDCHandler{Store: s, Config: oidcCfg, PublicURL: publicBaseURL}
@@ -29,7 +29,7 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 	labelH := &handlers.LabelHandler{Store: s}
 	boardH := &handlers.BoardHandler{Store: s, Hub: hub}
 	taskH := &handlers.TaskHandler{Store: s, Hub: hub}
-	streamH := &handlers.StreamHandler{Hub: hub}
+	streamH := &handlers.StreamHandler{Hub: hub, Store: s}
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -37,7 +37,7 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Post("/auth/login", authH.Login)
+		r.With(mw.AuthLimiter()).Post("/auth/login", authH.Login)
 		r.Get("/auth/oidc/config", oidcH.ConfigInfo)
 		r.Get("/auth/oidc/login", oidcH.Login)
 		r.Get("/auth/oidc/callback", oidcH.Callback)
@@ -47,8 +47,8 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 			r.Post("/auth/logout", authH.Logout)
 			r.Get("/auth/me", authH.Me)
 			r.Patch("/auth/me", authH.UpdateMe)
-			r.Post("/auth/change-password", authH.ChangePassword)
-			r.Post("/invites/{token}/accept", teamH.AcceptInvite)
+			r.With(mw.AuthLimiter()).Post("/auth/change-password", authH.ChangePassword)
+			r.With(mw.AuthLimiter()).Post("/invites/{token}/accept", teamH.AcceptInvite)
 		})
 
 		// Admin
@@ -76,7 +76,7 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/members", teamH.ListMembers)
 			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/labels", labelH.List)
 			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/boards", boardH.List)
-			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/invites", teamH.ListInvites)
+			r.With(mw.RequirePerm(domain.PermManageMembers)).Get("/invites", teamH.ListInvites)
 
 			r.With(mw.RequirePerm(domain.PermDeleteTeam)).Patch("/", teamH.Update)
 			r.With(mw.RequirePerm(domain.PermDeleteTeam)).Delete("/", teamH.Delete)
@@ -136,19 +136,33 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 	return r
 }
 
-func corsForDev(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS")
-		}
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+// corsMiddleware enforces a strict origin allowlist. Origins not in the
+// allowlist get no CORS headers — browsers will reject the response. Unlike
+// the previous implementation, we do NOT echo arbitrary Origin headers when
+// credentials mode is enabled: that combination allows any site the user
+// visits to read authenticated API responses.
+func corsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
+	allow := make(map[string]struct{}, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		allow[o] = struct{}{}
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" {
+				if _, ok := allow[origin]; ok {
+					w.Header().Set("Vary", "Origin")
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+					w.Header().Set("Access-Control-Allow-Credentials", "true")
+					w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+					w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS")
+				}
+			}
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }

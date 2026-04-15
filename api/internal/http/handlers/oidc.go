@@ -56,7 +56,7 @@ func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	setShortCookie(w, oidcStateCookie, state)
 	setShortCookie(w, oidcNonceCookie, nonce)
-	if next != "" && strings.HasPrefix(next, "/") {
+	if safeNext(next) {
 		setShortCookie(w, oidcNextCookie, next)
 	}
 
@@ -170,17 +170,10 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, "session create failed")
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     mw.SessionCookie,
-		Value:    sess.ID.String(),
-		Path:     "/",
-		Expires:  sess.ExpiresAt,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
+	http.SetCookie(w, mw.NewSessionCookie(sess.ID.String(), sess.ExpiresAt))
 
 	next := "/teams"
-	if nextC, err := r.Cookie(oidcNextCookie); err == nil && strings.HasPrefix(nextC.Value, "/") {
+	if nextC, err := r.Cookie(oidcNextCookie); err == nil && safeNext(nextC.Value) {
 		next = nextC.Value
 	}
 	clearCookie(w, oidcNextCookie)
@@ -200,6 +193,7 @@ func setShortCookie(w http.ResponseWriter, name, value string) {
 		Path:     "/",
 		MaxAge:   600,
 		HttpOnly: true,
+		Secure:   mw.CookieSecure,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -211,7 +205,25 @@ func clearCookie(w http.ResponseWriter, name string) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   mw.CookieSecure,
+		SameSite: http.SameSiteLaxMode,
 	})
+}
+
+// safeNext returns true if the path is a same-site relative path and cannot be
+// interpreted as a protocol-relative URL (//evil.example) or an absolute URL.
+// This prevents open-redirect abuse of the ?next= parameter.
+func safeNext(p string) bool {
+	if p == "" {
+		return false
+	}
+	if !strings.HasPrefix(p, "/") {
+		return false
+	}
+	if strings.HasPrefix(p, "//") || strings.HasPrefix(p, "/\\") {
+		return false
+	}
+	return true
 }
 
 func randString(n int) string {

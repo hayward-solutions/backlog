@@ -12,10 +12,19 @@ interface OIDCConfigResp {
   provider_name?: string;
 }
 
+// Restrict `next` to same-site relative paths to prevent open-redirect abuse
+// (e.g. ?next=https://attacker.example or ?next=//attacker.example).
+function safeNext(raw: string | null | undefined): string {
+  if (!raw) return "/teams";
+  if (!raw.startsWith("/")) return "/teams";
+  if (raw.startsWith("//") || raw.startsWith("/\\")) return "/teams";
+  return raw;
+}
+
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params?.get("next") || "/teams";
+  const next = safeNext(params?.get("next"));
   const ssoError = params?.get("error");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

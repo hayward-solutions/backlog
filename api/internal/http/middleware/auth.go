@@ -4,12 +4,47 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/haywardsolutions/backlog/api/internal/domain"
 	"github.com/haywardsolutions/backlog/api/internal/store"
 )
+
+// CookieSecure controls whether session/auxiliary cookies include the Secure
+// attribute. Set at startup from COOKIE_SECURE env var. Always enable in
+// production so session cookies are never sent over plaintext HTTP.
+var CookieSecure = false
+
+// NewSessionCookie returns a consistent session cookie template. All auth
+// flows (password login, OIDC, logout) must use this so hardening lands in
+// one place.
+func NewSessionCookie(value string, expires time.Time) *http.Cookie {
+	return &http.Cookie{
+		Name:     SessionCookie,
+		Value:    value,
+		Path:     "/",
+		Expires:  expires,
+		HttpOnly: true,
+		Secure:   CookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	}
+}
+
+// ClearSessionCookie returns an expiring cookie that removes the session.
+func ClearSessionCookie() *http.Cookie {
+	return &http.Cookie{
+		Name:     SessionCookie,
+		Value:    "",
+		Path:     "/",
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   CookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	}
+}
 
 type ctxKey int
 

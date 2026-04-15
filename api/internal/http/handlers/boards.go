@@ -21,7 +21,7 @@ func (h *BoardHandler) List(w http.ResponseWriter, r *http.Request) {
 	teamID, _ := urlUUID(r, "teamID")
 	bs, err := h.Store.ListBoards(r.Context(), teamID)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	writeJSON(w, http.StatusOK, bs)
@@ -40,7 +40,7 @@ func (h *BoardHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	key, err := h.Store.AllocateBoardKey(r.Context(), teamID, body.Key, body.Name)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	b := domain.Board{
@@ -80,7 +80,7 @@ func (h *BoardHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	b, _ = h.Store.GetBoard(r.Context(), b.ID)
@@ -97,17 +97,17 @@ func (h *BoardHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	cols, err := h.Store.ListColumns(r.Context(), id)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	tasks, err := h.Store.ListTasksByBoard(r.Context(), id)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	labels, err := h.Store.ListLabels(r.Context(), b.TeamID)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	if cols == nil {
@@ -141,7 +141,7 @@ func (h *BoardHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.Store.UpdateBoard(r.Context(), id, body.Name, body.Description, body.Archived); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	b, _ := h.Store.GetBoard(r.Context(), id)
@@ -152,7 +152,7 @@ func (h *BoardHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *BoardHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, _ := urlUUID(r, "boardID")
 	if err := h.Store.DeleteBoard(r.Context(), id); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -182,7 +182,7 @@ func (h *BoardHandler) CreateColumn(w http.ResponseWriter, r *http.Request) {
 		Type:     body.Type,
 	}
 	if err := h.Store.CreateColumn(r.Context(), nil, c); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	h.Hub.Publish(boardID, events.Event{Kind: "column.created", BoardID: boardID.String(), Payload: c})
@@ -219,7 +219,7 @@ func (h *BoardHandler) UpdateColumn(w http.ResponseWriter, r *http.Request) {
 		c.WIPLimit = body.WIPLimit
 	}
 	if err := h.Store.UpdateColumn(r.Context(), c); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	h.Hub.Publish(c.BoardID, events.Event{Kind: "column.updated", BoardID: c.BoardID.String(), Payload: c})
@@ -234,7 +234,7 @@ func (h *BoardHandler) DeleteColumn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.Store.DeleteColumn(r.Context(), id); err != nil {
-		httpErr(w, http.StatusConflict, err.Error())
+		internalErr(w, r, err, "failed to delete column")
 		return
 	}
 	h.Hub.Publish(c.BoardID, events.Event{Kind: "column.deleted", BoardID: c.BoardID.String(), Payload: map[string]string{"id": id.String()}})

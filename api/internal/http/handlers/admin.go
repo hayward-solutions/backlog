@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -20,7 +21,7 @@ type AdminHandler struct {
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.Store.ListUsers(r.Context())
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "failed to list users")
 		return
 	}
 	writeJSON(w, http.StatusOK, users)
@@ -37,6 +38,10 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadRequest, "bad body")
 		return
 	}
+	if err := auth.ValidatePassword(body.Password); err != nil {
+		httpErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	hash, err := auth.HashPassword(body.Password)
 	if err != nil {
 		httpErr(w, http.StatusBadRequest, err.Error())
@@ -50,8 +55,11 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:     time.Now().UTC(),
 	}
 	if err := h.Store.CreateUser(r.Context(), u, hash); err != nil {
-		httpErr(w, http.StatusBadRequest, err.Error())
+		internalErr(w, r, err, "failed to create user")
 		return
+	}
+	if actor, ok := mw.UserFrom(r.Context()); ok {
+		log.Printf("audit admin.create_user actor=%s target=%s admin=%t", actor.ID, u.ID, u.IsSystemAdmin)
 	}
 	writeJSON(w, http.StatusCreated, u)
 }
@@ -77,26 +85,52 @@ func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		lower := strings.ToLower(strings.TrimSpace(*body.Email))
 		body.Email = &lower
 	}
+	// Last-admin protection: reject any change that would drop the last
+	// active system admin (is_system_admin=false or disabled=true applied
+	// to the only remaining admin).
+	target, err := h.Store.GetUser(r.Context(), id)
+	if err != nil {
+		httpErr(w, http.StatusNotFound, "not found")
+		return
+	}
+	demotingAdmin := body.IsSystemAdmin != nil && !*body.IsSystemAdmin && target.IsSystemAdmin
+	disablingAdmin := body.Disabled != nil && *body.Disabled && target.IsSystemAdmin && target.DisabledAt == nil
+	if demotingAdmin || disablingAdmin {
+		n, err := h.Store.CountActiveSystemAdmins(r.Context())
+		if err != nil {
+			internalErr(w, r, err, "failed to check admin count")
+			return
+		}
+		if n <= 1 {
+			httpErr(w, http.StatusConflict, "cannot remove the last active system administrator")
+			return
+		}
+	}
+
 	if body.Email != nil || body.DisplayName != nil || body.IsSystemAdmin != nil {
 		if err := h.Store.UpdateUserProfile(r.Context(), id, body.Email, body.DisplayName, body.IsSystemAdmin); err != nil {
-			httpErr(w, http.StatusBadRequest, err.Error())
+			internalErr(w, r, err, "failed to update user profile")
 			return
 		}
 	}
 	if body.Disabled != nil {
 		if err := h.Store.SetUserDisabled(r.Context(), id, *body.Disabled); err != nil {
-			httpErr(w, http.StatusInternalServerError, err.Error())
+			internalErr(w, r, err, "failed to update user status")
 			return
 		}
 	}
 	if body.Password != nil {
+		if err := auth.ValidatePassword(*body.Password); err != nil {
+			httpErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		hash, err := auth.HashPassword(*body.Password)
 		if err != nil {
 			httpErr(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		if err := h.Store.SetUserPassword(r.Context(), id, hash); err != nil {
-			httpErr(w, http.StatusInternalServerError, err.Error())
+			internalErr(w, r, err, "failed to set password")
 			return
 		}
 	}
@@ -104,6 +138,12 @@ func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpErr(w, http.StatusNotFound, "not found")
 		return
+	}
+	if actor, ok := mw.UserFrom(r.Context()); ok {
+		log.Printf("audit admin.update_user actor=%s target=%s fields_email=%t fields_display=%t fields_admin=%t fields_disabled=%t fields_password=%t",
+			actor.ID, id,
+			body.Email != nil, body.DisplayName != nil, body.IsSystemAdmin != nil,
+			body.Disabled != nil, body.Password != nil)
 	}
 	writeJSON(w, http.StatusOK, u)
 }
@@ -125,7 +165,7 @@ func (h *AdminHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: time.Now().UTC(),
 	}
 	if err := h.Store.CreateTeam(r.Context(), t); err != nil {
-		httpErr(w, http.StatusBadRequest, err.Error())
+		internalErr(w, r, err, "failed to create team")
 		return
 	}
 	ownerID := body.OwnerID
@@ -136,7 +176,7 @@ func (h *AdminHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 	}
 	if ownerID != uuid.Nil {
 		if err := h.Store.AddMember(r.Context(), t.ID, ownerID, domain.RoleOwner); err != nil {
-			httpErr(w, http.StatusInternalServerError, err.Error())
+			internalErr(w, r, err, "failed to add owner")
 			return
 		}
 	}

@@ -15,7 +15,7 @@ func (h *LabelHandler) List(w http.ResponseWriter, r *http.Request) {
 	teamID, _ := urlUUID(r, "teamID")
 	ls, err := h.Store.ListLabels(r.Context(), teamID)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	writeJSON(w, http.StatusOK, ls)
@@ -38,7 +38,7 @@ func (h *LabelHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Color:  body.Color,
 	}
 	if err := h.Store.CreateLabel(r.Context(), l); err != nil {
-		httpErr(w, http.StatusBadRequest, err.Error())
+		internalErr(w, r, err, "failed to create label")
 		return
 	}
 	writeJSON(w, http.StatusCreated, l)
@@ -68,7 +68,7 @@ func (h *LabelHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.Store.UpdateLabel(r.Context(), id, body.Name, body.Color); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	l, _ := h.Store.GetLabel(r.Context(), id)
@@ -78,7 +78,7 @@ func (h *LabelHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *LabelHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, _ := urlUUID(r, "labelID")
 	if err := h.Store.DeleteLabel(r.Context(), id); err != nil {
-		httpErr(w, http.StatusInternalServerError, err.Error())
+		internalErr(w, r, err, "internal error")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

@@ -1,11 +1,16 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { api } from "@/lib/api";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
-export default function LoginPage() {
+import { api } from "@/lib/api";
+import { Button } from "@/components/ui/Button";
+import { Field, Input } from "@/components/ui/Input";
+
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const next = params?.get("next") || "/teams";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -20,43 +25,104 @@ export default function LoginPage() {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      router.push("/teams");
+      router.push(next);
     } catch (e: any) {
-      setErr(e.message || "login failed");
+      setErr(e.message || "Login failed");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <main className="mx-auto mt-24 max-w-sm px-4">
-      <h1 className="text-2xl font-semibold">Backlog</h1>
-      <p className="mt-1 text-sm text-neutral-600">Sign in to continue.</p>
-      <form onSubmit={submit} className="mt-6 space-y-3">
-        <input
+    <form onSubmit={submit} className="space-y-3">
+      <Field label="Email">
+        <Input
           type="email"
           required
-          placeholder="email"
-          className="w-full rounded border border-neutral-300 px-3 py-2"
+          placeholder="you@company.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          autoFocus
         />
-        <input
+      </Field>
+      <Field label="Password">
+        <Input
           type="password"
           required
-          placeholder="password"
-          className="w-full rounded border border-neutral-300 px-3 py-2"
+          placeholder="••••••••"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        {err && <div className="text-sm text-red-600">{err}</div>}
-        <button
-          disabled={busy}
-          className="w-full rounded bg-neutral-900 px-3 py-2 text-white disabled:opacity-50"
-        >
-          {busy ? "…" : "Sign in"}
-        </button>
-      </form>
+      </Field>
+      {err && (
+        <div className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">
+          {err}
+        </div>
+      )}
+      <Button
+        type="submit"
+        variant="primary"
+        size="lg"
+        disabled={busy}
+        className="w-full"
+      >
+        {busy ? "Signing in…" : "Sign in"}
+      </Button>
+    </form>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-brand-50 via-white to-purple-50 px-4 py-12">
+      {/* Decorative blurs */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-20 top-1/4 h-72 w-72 rounded-full bg-brand-200/50 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-20 bottom-1/4 h-72 w-72 rounded-full bg-purple-200/40 blur-3xl"
+      />
+
+      <div className="relative w-full max-w-[400px]">
+        {/* Brand */}
+        <div className="mb-6 flex items-center justify-center gap-2">
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-card">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor" opacity="0.95" />
+              <rect x="13" y="3" width="8" height="8" rx="1.5" fill="currentColor" opacity="0.75" />
+              <rect x="3" y="13" width="8" height="8" rx="1.5" fill="currentColor" opacity="0.55" />
+              <rect x="13" y="13" width="8" height="8" rx="1.5" fill="currentColor" opacity="0.85" />
+            </svg>
+          </span>
+          <span className="text-xl font-semibold tracking-tight text-ink-900">Backlog</span>
+        </div>
+
+        {/* Card */}
+        <div className="surface p-6 shadow-card">
+          <div className="mb-5 text-center">
+            <h1 className="text-lg font-semibold text-ink-900">Sign in to continue</h1>
+            <p className="mt-1 text-sm text-ink-600">
+              Track work, plan sprints, and ship together.
+            </p>
+          </div>
+
+          <Suspense
+            fallback={
+              <div className="flex justify-center py-8">
+                <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600" />
+              </div>
+            }
+          >
+            <LoginForm />
+          </Suspense>
+        </div>
+
+        <p className="mt-4 text-center text-xs text-ink-500">
+          Need an account? Ask a server admin to invite you.
+        </p>
+      </div>
     </main>
   );
 }

@@ -3,6 +3,9 @@
 import { forwardRef, useImperativeHandle } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, BoardTree, Member } from "@/lib/api";
+import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Input";
+import { IconFilter, IconPlus, IconSearch } from "@/components/ui/icons";
 
 export type Filter = "all" | "open" | "done";
 // "" = any; "none" = unassigned/no reporter; userID = that user
@@ -40,9 +43,18 @@ export const BoardToolbar = forwardRef<
     onNewTask: (columnId?: string) => void;
     visibleCount?: number;
     totalCount?: number;
+    newTaskLabel?: string;
   }
 >(function BoardToolbar(
-  { tree, state, onChange, onNewTask, visibleCount, totalCount },
+  {
+    tree,
+    state,
+    onChange,
+    onNewTask,
+    visibleCount,
+    totalCount,
+    newTaskLabel = "New task",
+  },
   ref
 ) {
   const members = useQuery({
@@ -57,80 +69,104 @@ export const BoardToolbar = forwardRef<
   }));
 
   const memberOptions = members.data ?? [];
+  const activeFilterCount =
+    (state.filter !== "all" ? 1 : 0) +
+    (state.assignee ? 1 : 0) +
+    (state.reporter ? 1 : 0) +
+    (state.label ? 1 : 0);
 
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b bg-neutral-50 px-6 py-2 text-sm">
-      <input
-        value={state.q}
-        onChange={(e) => onChange({ ...state, q: e.target.value })}
-        placeholder="Search title…"
-        className="rounded border border-neutral-300 px-2 py-1"
-      />
-      <select
+    <div className="flex flex-wrap items-center gap-2 border-b border-ink-200 bg-white px-4 py-2.5 sm:px-6">
+      <div className="relative">
+        <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500">
+          <IconSearch size={14} />
+        </span>
+        <input
+          value={state.q}
+          onChange={(e) => onChange({ ...state, q: e.target.value })}
+          placeholder="Search tasks…"
+          className="control w-56 pl-8"
+        />
+      </div>
+
+      <div className="hidden items-center gap-1 border-l border-ink-200 pl-2 sm:flex">
+        <span className="text-ink-500">
+          <IconFilter size={14} />
+        </span>
+        {activeFilterCount > 0 && (
+          <span className="rounded-full bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700">
+            {activeFilterCount}
+          </span>
+        )}
+      </div>
+
+      <Select
         value={state.filter}
         onChange={(e) => onChange({ ...state, filter: e.target.value as Filter })}
-        className="rounded border border-neutral-300 px-2 py-1"
         title="Status"
       >
-        <option value="all">All</option>
+        <option value="all">All status</option>
         <option value="open">Open</option>
         <option value="done">Done</option>
-      </select>
-      <select
+      </Select>
+
+      <Select
         value={state.assignee}
         onChange={(e) => onChange({ ...state, assignee: e.target.value })}
-        className="rounded border border-neutral-300 px-2 py-1"
         title="Assignee"
       >
-        <option value="">Assignee: any</option>
+        <option value="">Any assignee</option>
         <option value="none">Unassigned</option>
         {memberOptions.map((m) => (
           <option key={m.user.id} value={m.user.id}>
             {m.user.display_name || m.user.email}
           </option>
         ))}
-      </select>
-      <select
+      </Select>
+
+      <Select
         value={state.reporter}
         onChange={(e) => onChange({ ...state, reporter: e.target.value })}
-        className="rounded border border-neutral-300 px-2 py-1"
         title="Reporter"
       >
-        <option value="">Reporter: any</option>
+        <option value="">Any reporter</option>
         {memberOptions.map((m) => (
           <option key={m.user.id} value={m.user.id}>
             {m.user.display_name || m.user.email}
           </option>
         ))}
-      </select>
+      </Select>
+
       {tree.labels.length > 0 && (
-        <select
+        <Select
           value={state.label}
           onChange={(e) => onChange({ ...state, label: e.target.value })}
-          className="rounded border border-neutral-300 px-2 py-1"
           title="Label"
         >
-          <option value="">Label: any</option>
+          <option value="">Any label</option>
           <option value="none">No labels</option>
           {tree.labels.map((l) => (
             <option key={l.id} value={l.id}>
               {l.name}
             </option>
           ))}
-        </select>
+        </Select>
       )}
+
       {typeof visibleCount === "number" && typeof totalCount === "number" && (
-        <span className="text-neutral-500">
-          {visibleCount} of {totalCount}
+        <span className="hidden text-xs text-ink-500 lg:inline">
+          {visibleCount === totalCount
+            ? `${totalCount} item${totalCount === 1 ? "" : "s"}`
+            : `${visibleCount} of ${totalCount}`}
         </span>
       )}
-      <button
-        type="button"
-        onClick={() => onNewTask()}
-        className="ml-auto rounded bg-neutral-900 px-3 py-1 text-white"
-      >
-        + New task
-      </button>
+
+      <div className="ml-auto flex items-center gap-2">
+        <Button variant="primary" onClick={() => onNewTask()}>
+          <IconPlus size={14} strokeWidth={2.25} />
+          {newTaskLabel}
+        </Button>
+      </div>
     </div>
   );
 });

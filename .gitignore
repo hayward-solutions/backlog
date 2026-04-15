@@ -1,0 +1,14 @@
+.DS_Store
+.idea/
+.env
+*.log
+
+# Go
+api/server
+api/tmp/
+
+# Node / Next
+web/node_modules/
+web/.next/
+web/out/
+web/.turbo/

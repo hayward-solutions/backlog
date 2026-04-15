@@ -7,6 +7,7 @@ import { api, Board, Team, User } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
 import {
   IconBoard,
+  IconClose,
   IconEpic,
   IconList,
   IconPlus,
@@ -18,9 +19,13 @@ import {
 export function Sidebar({
   teamId,
   boardId,
+  mobileOpen = false,
+  onMobileClose,
 }: {
   teamId?: string;
   boardId?: string;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }) {
   const pathname = usePathname();
 
@@ -42,10 +47,23 @@ export function Sidebar({
   const activeTeam = teams.data?.find((t) => t.id === teamId);
 
   return (
-    <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-ink-200 bg-white">
+    <>
+      {/* Mobile backdrop */}
+      <div
+        onClick={onMobileClose}
+        aria-hidden
+        className={`fixed inset-0 z-40 bg-ink-900/50 backdrop-blur-[1px] transition-opacity md:hidden ${
+          mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[84vw] max-w-[280px] flex-col border-r border-ink-200 bg-white shadow-drawer transition-transform duration-200 md:sticky md:top-0 md:z-auto md:w-60 md:max-w-none md:shrink-0 md:translate-x-0 md:shadow-none ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
       {/* Brand */}
-      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-ink-200 px-4">
-        <Link href="/teams" className="flex items-center gap-2">
+      <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-ink-200 px-4">
+        <Link href="/teams" className="flex items-center gap-2" onClick={onMobileClose}>
           <span className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-brand-500 to-brand-700 text-white">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor" opacity="0.95" />
@@ -58,6 +76,15 @@ export function Sidebar({
             Backlog
           </span>
         </Link>
+        {onMobileClose && (
+          <button
+            onClick={onMobileClose}
+            aria-label="Close navigation"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-ink-500 hover:bg-ink-100 hover:text-ink-900 md:hidden"
+          >
+            <IconClose size={18} />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -156,7 +183,8 @@ export function Sidebar({
           </div>
         )}
       </nav>
-    </aside>
+      </aside>
+    </>
   );
 }
 

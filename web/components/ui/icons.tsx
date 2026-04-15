@@ -182,6 +182,12 @@ export const IconBell = (p: IconProps) => (
   </svg>
 );
 
+export const IconMenu = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M3 6h18M3 12h18M3 18h18" />
+  </svg>
+);
+
 export const IconHome = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2V10Z" />

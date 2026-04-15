@@ -125,7 +125,7 @@ export function NewTaskModal({
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Column">
             <Select
               value={columnId}
@@ -197,7 +197,7 @@ export function NewTaskModal({
               onChange={(e) => setDeadline(e.target.value)}
             />
           </Field>
-          <Field label="Epic" className="col-span-2">
+          <Field label="Epic" className="sm:col-span-2">
             <Select
               value={epicId}
               onChange={(e) => setEpicId(e.target.value)}

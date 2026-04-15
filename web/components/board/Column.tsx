@@ -39,7 +39,7 @@ export function Column({
   const atLimit = column.wip_limit != null && tasks.length > column.wip_limit;
 
   return (
-    <div className="flex w-[296px] shrink-0 flex-col overflow-hidden rounded-lg border border-ink-200 bg-ink-50">
+    <div className="flex w-[85vw] max-w-[296px] shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-ink-200 bg-ink-50 sm:w-[296px] sm:max-w-none sm:snap-none">
       {/* Top accent bar */}
       <div className={`h-1 w-full ${accent.bar}`} />
 

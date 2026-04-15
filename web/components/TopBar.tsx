@@ -6,13 +6,16 @@ import { useQuery } from "@tanstack/react-query";
 import { api, User } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
 import { Menu, MenuDivider, MenuItem } from "@/components/ui/Menu";
-import { IconChevronDown, IconLogout, IconSettings, IconUsers } from "@/components/ui/icons";
+import { IconChevronDown, IconLogout, IconMenu, IconSettings, IconUsers } from "@/components/ui/icons";
 
 export function TopBar({
   children,
+  onMenuClick,
 }: {
   /** Optional center/left breadcrumb or title slot */
   children?: React.ReactNode;
+  /** Shown on mobile; opens the navigation drawer */
+  onMenuClick?: () => void;
 }) {
   const router = useRouter();
   const { data: me } = useQuery({
@@ -29,7 +32,17 @@ export function TopBar({
   const label = me?.display_name || me?.email || "Account";
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-ink-200 bg-white/95 px-4 backdrop-blur sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-ink-200 bg-white/95 px-2 backdrop-blur sm:gap-4 sm:px-6">
+      {onMenuClick && (
+        <button
+          type="button"
+          onClick={onMenuClick}
+          aria-label="Open navigation"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-ink-700 hover:bg-ink-100 md:hidden"
+        >
+          <IconMenu size={20} />
+        </button>
+      )}
       <div className="min-w-0 flex-1 truncate">{children}</div>
 
       {me && (

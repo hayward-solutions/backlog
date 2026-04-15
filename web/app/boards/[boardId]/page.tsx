@@ -3,7 +3,8 @@
 import {
   DndContext,
   DragEndEvent,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -86,8 +87,14 @@ export default function BoardPage() {
     onSettled: () => qc.invalidateQueries({ queryKey: ["board", boardId] }),
   });
 
+  // Use MouseSensor for desktop (drag on small movement) and TouchSensor with a
+  // press-and-hold delay on touch devices so vertical/horizontal scrolling of
+  // the board still works naturally on mobile.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 8 },
+    })
   );
 
   if (query.isLoading) {
@@ -168,10 +175,10 @@ export default function BoardPage() {
         </div>
       }
     >
-      <div className="border-b border-ink-200 bg-white px-4 py-4 sm:px-6">
+      <div className="border-b border-ink-200 bg-white px-4 py-3 sm:py-4 sm:px-6">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="truncate text-[20px] font-semibold tracking-tight text-ink-900">
+            <h1 className="truncate text-[18px] font-semibold tracking-tight text-ink-900 sm:text-[20px]">
               {tree.board.name}
             </h1>
             {tree.board.description && (
@@ -201,8 +208,8 @@ export default function BoardPage() {
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex-1 overflow-x-auto overflow-y-hidden bg-ink-50">
-          <div className="flex h-full min-w-min gap-3 p-4 sm:p-6">
+        <div className="flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden bg-ink-50 sm:snap-none">
+          <div className="flex h-full min-w-min gap-3 p-3 sm:p-6">
             {tree.columns
               .sort((a, b) => a.position - b.position)
               .map((c) => (

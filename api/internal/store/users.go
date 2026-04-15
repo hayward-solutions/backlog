@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,10 +16,14 @@ import (
 var ErrNotFound = errors.New("not found")
 
 func (s *Store) CreateUser(ctx context.Context, u domain.User, passwordHash string) error {
+	var pw *string
+	if passwordHash != "" {
+		pw = &passwordHash
+	}
 	_, err := s.Pool.Exec(ctx,
 		`INSERT INTO users (id, email, password_hash, display_name, is_system_admin, created_at)
 		 VALUES ($1,$2,$3,$4,$5, now())`,
-		u.ID, u.Email, passwordHash, u.DisplayName, u.IsSystemAdmin)
+		u.ID, u.Email, pw, u.DisplayName, u.IsSystemAdmin)
 	return err
 }
 
@@ -108,6 +113,84 @@ func (s *Store) UpdateUserProfile(ctx context.Context, id uuid.UUID, email, disp
 func (s *Store) SetUserPassword(ctx context.Context, id uuid.UUID, hash string) error {
 	_, err := s.Pool.Exec(ctx, `UPDATE users SET password_hash = $2 WHERE id = $1`, id, hash)
 	return err
+}
+
+// GetUserByOIDCSubject returns the user mapped to an OIDC subject, if any.
+func (s *Store) GetUserByOIDCSubject(ctx context.Context, subject string) (domain.User, error) {
+	var u domain.User
+	err := s.Pool.QueryRow(ctx,
+		`SELECT id, email, display_name, is_system_admin, disabled_at, created_at
+		 FROM users WHERE oidc_subject = $1`, subject).
+		Scan(&u.ID, &u.Email, &u.DisplayName, &u.IsSystemAdmin, &u.DisabledAt, &u.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return u, ErrNotFound
+	}
+	return u, err
+}
+
+// UpsertOIDCUser creates or updates a user identified by OIDC subject.
+// If a user with the same email already exists, it links the subject to them.
+// isSystemAdmin is applied on every call so group membership stays authoritative.
+func (s *Store) UpsertOIDCUser(ctx context.Context, subject, email, displayName string, isSystemAdmin bool) (domain.User, error) {
+	var u domain.User
+	email = strings.ToLower(strings.TrimSpace(email))
+	err := s.WithTx(ctx, func(tx pgx.Tx) error {
+		// 1) subject already linked?
+		err := tx.QueryRow(ctx,
+			`SELECT id, email, display_name, is_system_admin, disabled_at, created_at
+			 FROM users WHERE oidc_subject = $1`, subject).
+			Scan(&u.ID, &u.Email, &u.DisplayName, &u.IsSystemAdmin, &u.DisabledAt, &u.CreatedAt)
+		if err == nil {
+			_, err = tx.Exec(ctx,
+				`UPDATE users SET email = $2, display_name = $3, is_system_admin = $4 WHERE id = $1`,
+				u.ID, email, displayName, isSystemAdmin)
+			if err != nil {
+				return err
+			}
+			u.Email = email
+			u.DisplayName = displayName
+			u.IsSystemAdmin = isSystemAdmin
+			return nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+
+		// 2) link by email if present
+		err = tx.QueryRow(ctx,
+			`SELECT id, email, display_name, is_system_admin, disabled_at, created_at
+			 FROM users WHERE email = $1`, email).
+			Scan(&u.ID, &u.Email, &u.DisplayName, &u.IsSystemAdmin, &u.DisabledAt, &u.CreatedAt)
+		if err == nil {
+			_, err = tx.Exec(ctx,
+				`UPDATE users SET oidc_subject = $2, display_name = $3, is_system_admin = $4 WHERE id = $1`,
+				u.ID, subject, displayName, isSystemAdmin)
+			if err != nil {
+				return err
+			}
+			u.DisplayName = displayName
+			u.IsSystemAdmin = isSystemAdmin
+			return nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+
+		// 3) create fresh user
+		u = domain.User{
+			ID:            uuid.Must(uuid.NewV7()),
+			Email:         email,
+			DisplayName:   displayName,
+			IsSystemAdmin: isSystemAdmin,
+			CreatedAt:     time.Now().UTC(),
+		}
+		_, err = tx.Exec(ctx,
+			`INSERT INTO users (id, email, display_name, is_system_admin, oidc_subject, created_at)
+			 VALUES ($1,$2,$3,$4,$5, now())`,
+			u.ID, u.Email, u.DisplayName, u.IsSystemAdmin, subject)
+		return err
+	})
+	return u, err
 }
 
 // Sessions

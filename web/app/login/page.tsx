@@ -1,20 +1,35 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
+
+interface OIDCConfigResp {
+  enabled: boolean;
+  provider_name?: string;
+}
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params?.get("next") || "/teams";
+  const ssoError = params?.get("error");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(ssoError);
   const [busy, setBusy] = useState(false);
+  const [oidc, setOidc] = useState<OIDCConfigResp | null>(null);
+
+  useEffect(() => {
+    api<OIDCConfigResp>("/auth/oidc/config")
+      .then(setOidc)
+      .catch(() => setOidc({ enabled: false }));
+  }, []);
+
+  const ssoHref = `${API_BASE}/api/v1/auth/oidc/login?next=${encodeURIComponent(next)}`;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -68,6 +83,21 @@ function LoginForm() {
       >
         {busy ? "Signing in…" : "Sign in"}
       </Button>
+      {oidc?.enabled && (
+        <>
+          <div className="relative my-2 flex items-center">
+            <div className="flex-grow border-t border-ink-200" />
+            <span className="mx-3 text-xs uppercase tracking-wide text-ink-500">or</span>
+            <div className="flex-grow border-t border-ink-200" />
+          </div>
+          <a
+            href={ssoHref}
+            className="flex h-11 w-full items-center justify-center rounded-md border border-ink-200 bg-white px-4 text-sm font-medium text-ink-900 shadow-sm hover:bg-ink-50"
+          >
+            Sign in with {oidc.provider_name || "SSO"}
+          </a>
+        </>
+      )}
     </form>
   );
 }

@@ -8,7 +8,6 @@ import { AppShell } from "@/components/AppShell";
 import { Breadcrumbs } from "@/components/TopBar";
 import { NewTaskModal } from "@/components/board/NewTaskModal";
 import { TaskDrawer } from "@/components/board/TaskDrawer";
-import { taskKey } from "@/components/board/Card";
 import { api, BoardTree, Member, Task } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge, LabelPill } from "@/components/ui/Badge";
@@ -276,7 +275,7 @@ export default function BoardEpicsPage() {
                           <IconEpic size={12} strokeWidth={2.25} />
                         </span>
                         <span className="font-mono text-[11px] font-semibold text-ink-500">
-                          {taskKey(epic.id)}
+                          {epic.key}
                         </span>
                         <span className="font-semibold text-ink-900">{epic.title}</span>
                         {epic.completed_at && <Badge tone="green">Done</Badge>}
@@ -382,7 +381,9 @@ export default function BoardEpicsPage() {
                           <div className="flex items-center gap-2">
                             <span className="text-ink-400">↳</span>
                             <span className="font-mono text-[11px] font-semibold text-ink-500">
-                              {taskKey(c.id)}
+                              <span className="text-ink-400">{epic.key}</span>
+                              <span className="mx-0.5 text-ink-300">/</span>
+                              <span>{c.key}</span>
                             </span>
                             <span className="text-ink-800">{c.title}</span>
                             {c.completed_at && <Badge tone="green">Done</Badge>}

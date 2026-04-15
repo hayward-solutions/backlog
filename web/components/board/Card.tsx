@@ -8,9 +8,21 @@ import { Badge, LabelPill } from "@/components/ui/Badge";
 import { IconCalendar, IconClock, IconEpic } from "@/components/ui/icons";
 import { PriorityIcon } from "@/components/ui/PriorityIcon";
 
-/** Short human-readable key derived from task UUID. */
-export function taskKey(id: string): string {
-  return `BL-${id.replace(/-/g, "").slice(0, 4).toUpperCase()}`;
+/** Ordered list of keys from the top-most epic down to this task. */
+export function taskPath(task: Task, allTasks: Task[]): string[] {
+  const byId = new Map(allTasks.map((t) => [t.id, t]));
+  const chain: string[] = [task.key];
+  const seen = new Set<string>([task.id]);
+  let cur: Task | undefined = task;
+  while (cur?.epic_id) {
+    if (seen.has(cur.epic_id)) break; // guard against cycles
+    const parent = byId.get(cur.epic_id);
+    if (!parent) break;
+    chain.unshift(parent.key);
+    seen.add(parent.id);
+    cur = parent;
+  }
+  return chain;
 }
 
 function formatDeadline(iso: string) {
@@ -89,7 +101,7 @@ export function Card({
             </span>
           )}
           <span className="font-mono text-[11px] font-semibold uppercase tracking-wide text-ink-500">
-            {taskKey(task.id)}
+            {task.key}
           </span>
           <PriorityIcon priority={task.priority} size={13} />
         </div>

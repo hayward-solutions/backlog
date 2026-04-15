@@ -12,24 +12,39 @@ import (
 	"github.com/haywardsolutions/backlog/api/internal/domain"
 )
 
-func (s *Store) CreateTask(ctx context.Context, t domain.Task) error {
-	_, err := s.Pool.Exec(ctx,
-		`INSERT INTO tasks (id, board_id, column_id, epic_id, is_epic, title, description,
-			priority, assignee_id, reporter_id, estimate_hours, deadline_at, position, completed_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-		t.ID, t.BoardID, t.ColumnID, t.EpicID, t.IsEpic, t.Title, t.Description,
-		string(t.Priority), t.AssigneeID, t.ReporterID, t.EstimateHours, t.DeadlineAt, t.Position, t.CompletedAt)
-	return err
+// CreateTask inserts the task and atomically allocates its board-scoped key
+// (e.g. "DEM-042") by incrementing boards.task_seq. The composed key is
+// written to both the passed-in struct and the database so the caller can
+// return the final value to clients.
+func (s *Store) CreateTask(ctx context.Context, t *domain.Task) error {
+	return s.WithTx(ctx, func(tx pgx.Tx) error {
+		var boardKey string
+		var seq int
+		if err := tx.QueryRow(ctx,
+			`UPDATE boards SET task_seq = task_seq + 1
+			 WHERE id = $1
+			 RETURNING key, task_seq`, t.BoardID).Scan(&boardKey, &seq); err != nil {
+			return err
+		}
+		t.Key = boardKey + "-" + padSeq(seq)
+		_, err := tx.Exec(ctx,
+			`INSERT INTO tasks (id, board_id, column_id, epic_id, is_epic, key, title, description,
+				priority, assignee_id, reporter_id, estimate_hours, deadline_at, position, completed_at)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+			t.ID, t.BoardID, t.ColumnID, t.EpicID, t.IsEpic, t.Key, t.Title, t.Description,
+			string(t.Priority), t.AssigneeID, t.ReporterID, t.EstimateHours, t.DeadlineAt, t.Position, t.CompletedAt)
+		return err
+	})
 }
 
 func (s *Store) GetTask(ctx context.Context, id uuid.UUID) (domain.Task, error) {
 	var t domain.Task
 	var pr string
 	err := s.Pool.QueryRow(ctx,
-		`SELECT id, board_id, column_id, epic_id, is_epic, title, description, priority,
+		`SELECT id, board_id, column_id, epic_id, is_epic, key, title, description, priority,
 			assignee_id, reporter_id, estimate_hours, deadline_at, position, created_at, completed_at
 		 FROM tasks WHERE id = $1`, id).
-		Scan(&t.ID, &t.BoardID, &t.ColumnID, &t.EpicID, &t.IsEpic, &t.Title, &t.Description, &pr,
+		Scan(&t.ID, &t.BoardID, &t.ColumnID, &t.EpicID, &t.IsEpic, &t.Key, &t.Title, &t.Description, &pr,
 			&t.AssigneeID, &t.ReporterID, &t.EstimateHours, &t.DeadlineAt, &t.Position, &t.CreatedAt, &t.CompletedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, ErrNotFound
@@ -61,7 +76,7 @@ func (s *Store) taskLabels(ctx context.Context, taskID uuid.UUID) ([]uuid.UUID, 
 
 func (s *Store) ListTasksByBoard(ctx context.Context, boardID uuid.UUID) ([]domain.Task, error) {
 	rows, err := s.Pool.Query(ctx,
-		`SELECT id, board_id, column_id, epic_id, is_epic, title, description, priority,
+		`SELECT id, board_id, column_id, epic_id, is_epic, key, title, description, priority,
 			assignee_id, reporter_id, estimate_hours, deadline_at, position, created_at, completed_at
 		 FROM tasks WHERE board_id = $1 ORDER BY column_id, position`, boardID)
 	if err != nil {
@@ -72,7 +87,7 @@ func (s *Store) ListTasksByBoard(ctx context.Context, boardID uuid.UUID) ([]doma
 	for rows.Next() {
 		var t domain.Task
 		var pr string
-		if err := rows.Scan(&t.ID, &t.BoardID, &t.ColumnID, &t.EpicID, &t.IsEpic, &t.Title, &t.Description, &pr,
+		if err := rows.Scan(&t.ID, &t.BoardID, &t.ColumnID, &t.EpicID, &t.IsEpic, &t.Key, &t.Title, &t.Description, &pr,
 			&t.AssigneeID, &t.ReporterID, &t.EstimateHours, &t.DeadlineAt, &t.Position, &t.CreatedAt, &t.CompletedAt); err != nil {
 			return nil, err
 		}
@@ -247,6 +262,16 @@ func (s *Store) ListEvents(ctx context.Context, taskID uuid.UUID) ([]domain.Task
 }
 
 // Helpers
+
+// padSeq formats n as a zero-padded decimal with a minimum width of 3. Longer
+// sequences grow naturally (e.g. "001", "042", "1234").
+func padSeq(n int) string {
+	s := itoa(n)
+	if len(s) >= 3 {
+		return s
+	}
+	return "000"[:3-len(s)] + s
+}
 
 func itoa(i int) string {
 	// small, allocates less than strconv for short use

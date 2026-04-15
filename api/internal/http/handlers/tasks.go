@@ -76,7 +76,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 		now := time.Now().UTC()
 		t.CompletedAt = &now
 	}
-	if err := h.Store.CreateTask(r.Context(), t); err != nil {
+	if err := h.Store.CreateTask(r.Context(), &t); err != nil {
 		httpErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}

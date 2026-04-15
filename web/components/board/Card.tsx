@@ -2,22 +2,39 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { Label, Task } from "@/lib/api";
+import type { Label, Member, Task } from "@/lib/api";
+import { Avatar } from "@/components/ui/Avatar";
+import { Badge, LabelPill } from "@/components/ui/Badge";
+import { IconCalendar, IconClock, IconEpic } from "@/components/ui/icons";
+import { PriorityIcon } from "@/components/ui/PriorityIcon";
 
-const priorityColor: Record<string, string> = {
-  low: "bg-neutral-100 text-neutral-600",
-  med: "bg-sky-100 text-sky-700",
-  high: "bg-amber-100 text-amber-700",
-  urgent: "bg-red-100 text-red-700",
-};
+/** Short human-readable key derived from task UUID. */
+export function taskKey(id: string): string {
+  return `BL-${id.replace(/-/g, "").slice(0, 4).toUpperCase()}`;
+}
+
+function formatDeadline(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = d.getTime() - now.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  if (diffDays === -1) return "Yesterday";
+  if (diffDays > 1 && diffDays < 7) return `In ${diffDays}d`;
+  if (diffDays < -1 && diffDays > -7) return `${Math.abs(diffDays)}d ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 export function Card({
   task,
   labels,
+  members,
   onClick,
 }: {
   task: Task;
   labels: Label[];
+  members: Member[];
   onClick: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -30,6 +47,9 @@ export function Card({
   const taskLabels = labels.filter((l) => task.label_ids.includes(l.id));
   const overdue =
     task.deadline_at && !task.completed_at && new Date(task.deadline_at) < new Date();
+  const assignee = task.assignee_id
+    ? members.find((m) => m.user.id === task.assignee_id)?.user
+    : undefined;
 
   return (
     <div
@@ -38,43 +58,79 @@ export function Card({
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className="cursor-grab rounded-md border border-neutral-200 bg-white p-3 shadow-sm hover:border-neutral-300"
+      className="card-hover group cursor-grab rounded-md border border-ink-200 bg-white p-3 shadow-card active:cursor-grabbing"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="text-sm font-medium">{task.title}</div>
-        <span
-          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase ${
-            priorityColor[task.priority]
-          }`}
-        >
-          {task.priority}
-        </span>
-      </div>
+      {/* Labels strip */}
       {taskLabels.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div className="mb-2 flex flex-wrap gap-1">
           {taskLabels.map((l) => (
-            <span
-              key={l.id}
-              className="rounded px-1.5 py-0.5 text-[10px] text-white"
-              style={{ background: l.color }}
-            >
-              {l.name}
-            </span>
+            <LabelPill key={l.id} name={l.name} color={l.color} />
           ))}
         </div>
       )}
-      <div className="mt-2 flex items-center justify-between text-[11px] text-neutral-500">
-        {task.estimate_hours != null && <span>{task.estimate_hours}h</span>}
-        {task.deadline_at && (
-          <span className={overdue ? "text-red-600 font-medium" : ""}>
-            {new Date(task.deadline_at).toLocaleDateString()}
+
+      {/* Title */}
+      <div className="text-[13.5px] font-medium leading-snug text-ink-900">
+        {task.title}
+      </div>
+
+      {/* Meta row */}
+      <div className="mt-2.5 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {task.is_epic ? (
+            <span className="flex h-4 w-4 items-center justify-center rounded-sm bg-purple-600 text-white">
+              <IconEpic size={11} strokeWidth={2.25} />
+            </span>
+          ) : (
+            <span className="flex h-4 w-4 items-center justify-center rounded-sm bg-brand-50 text-brand-700">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="4" y="4" width="16" height="16" rx="3" />
+              </svg>
+            </span>
+          )}
+          <span className="font-mono text-[11px] font-semibold uppercase tracking-wide text-ink-500">
+            {taskKey(task.id)}
           </span>
-        )}
-        {task.is_epic && (
-          <span className="rounded bg-purple-100 px-1.5 py-0.5 text-purple-700">
-            epic
-          </span>
-        )}
+          <PriorityIcon priority={task.priority} size={13} />
+        </div>
+
+        <div className="flex items-center gap-2 text-[11px] text-ink-500">
+          {task.estimate_hours != null && (
+            <span className="inline-flex items-center gap-0.5">
+              <IconClock size={11} />
+              {task.estimate_hours}h
+            </span>
+          )}
+          {task.deadline_at && (
+            <span
+              className={`inline-flex items-center gap-0.5 ${
+                overdue ? "font-semibold text-danger-600" : ""
+              }`}
+            >
+              <IconCalendar size={11} />
+              {formatDeadline(task.deadline_at)}
+            </span>
+          )}
+          {assignee ? (
+            <Avatar
+              name={assignee.display_name || assignee.email}
+              seed={assignee.id}
+              size={20}
+              title={assignee.display_name || assignee.email}
+            />
+          ) : (
+            <span
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-ink-300 text-ink-400"
+              title="Unassigned"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21a8 8 0 0 1 16 0" />
+              </svg>
+            </span>
+          )}
+          {task.completed_at && <Badge tone="green">Done</Badge>}
+        </div>
       </div>
     </div>
   );

@@ -9,11 +9,11 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
-import Link from "next/link";
 
-import { Nav } from "@/components/Nav";
+import { AppShell } from "@/components/AppShell";
+import { Breadcrumbs } from "@/components/TopBar";
 import { Column } from "@/components/board/Column";
 import { NewTaskModal } from "@/components/board/NewTaskModal";
 import { TaskDrawer } from "@/components/board/TaskDrawer";
@@ -24,13 +24,12 @@ import {
   defaultToolbarState,
   filterTasks,
 } from "@/components/board/BoardToolbar";
-import { api, BoardTree, canManageBoards, Task } from "@/lib/api";
+import { api, BoardTree, Member, Task } from "@/lib/api";
 import { useBoardStream } from "@/lib/sse";
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const qc = useQueryClient();
-  const router = useRouter();
   const [selected, setSelected] = useState<Task | null>(null);
   const [toolbar, setToolbar] = useState<ToolbarState>(defaultToolbarState);
   const [newTaskCol, setNewTaskCol] = useState<string | null>(null);
@@ -42,7 +41,13 @@ export default function BoardPage() {
     queryFn: () => api<BoardTree>(`/boards/${boardId}`),
   });
 
-  // SSE → refetch (simple, correct, good enough for v1)
+  const teamId = query.data?.board.team_id;
+  const members = useQuery({
+    enabled: !!teamId,
+    queryKey: ["members", teamId],
+    queryFn: () => api<Member[]>(`/teams/${teamId}/members`),
+  });
+
   const onStream = useCallback(() => {
     qc.invalidateQueries({ queryKey: ["board", boardId] });
   }, [qc, boardId]);
@@ -78,8 +83,7 @@ export default function BoardPage() {
     onError: (_e, _v, ctx) => {
       if (ctx?.prev) qc.setQueryData(["board", boardId], ctx.prev);
     },
-    onSettled: () =>
-      qc.invalidateQueries({ queryKey: ["board", boardId] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["board", boardId] }),
   });
 
   const sensors = useSensors(
@@ -88,18 +92,20 @@ export default function BoardPage() {
 
   if (query.isLoading) {
     return (
-      <div>
-        <Nav />
-        <p className="p-6 text-neutral-500">Loading…</p>
-      </div>
+      <AppShell boardId={boardId}>
+        <div className="flex flex-1 items-center justify-center text-sm text-ink-500">
+          Loading board…
+        </div>
+      </AppShell>
     );
   }
   if (query.error) {
     return (
-      <div>
-        <Nav />
-        <p className="p-6 text-red-600">{(query.error as Error).message}</p>
-      </div>
+      <AppShell boardId={boardId}>
+        <div className="p-6 text-sm text-danger-600">
+          {(query.error as Error).message}
+        </div>
+      </AppShell>
     );
   }
   const tree = query.data!;
@@ -147,49 +153,36 @@ export default function BoardPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <Nav />
-      <div className="border-b bg-white px-6 py-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold">{tree.board.name}</h1>
+    <AppShell
+      boardId={boardId}
+      teamId={tree.board.team_id}
+      topSlot={
+        <div className="flex items-center gap-3">
+          <Breadcrumbs
+            items={[
+              { label: "Teams", href: "/teams" },
+              { label: "Team", href: `/teams/${tree.board.team_id}` },
+              { label: tree.board.name },
+            ]}
+          />
+        </div>
+      }
+    >
+      <div className="border-b border-ink-200 bg-white px-4 py-4 sm:px-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="truncate text-[20px] font-semibold tracking-tight text-ink-900">
+              {tree.board.name}
+            </h1>
             {tree.board.description && (
-              <p className="text-xs text-neutral-500">{tree.board.description}</p>
+              <p className="mt-0.5 line-clamp-2 text-sm text-ink-600">
+                {tree.board.description}
+              </p>
             )}
-            <nav className="mt-1 flex gap-4 text-sm">
-              <span className="font-medium">Board</span>
-              <Link
-                href={`/boards/${boardId}/tasks`}
-                className="text-neutral-500 hover:underline"
-              >
-                Tasks
-              </Link>
-              <Link
-                href={`/boards/${boardId}/epics`}
-                className="text-neutral-500 hover:underline"
-              >
-                Epics
-              </Link>
-            </nav>
-          </div>
-          <div className="flex items-center gap-4 text-sm">
-            {canManageBoards(tree.your_role) && (
-              <Link
-                href={`/boards/${boardId}/settings`}
-                className="text-neutral-600 hover:underline"
-              >
-                Settings
-              </Link>
-            )}
-            <Link
-              href={`/teams/${tree.board.team_id}`}
-              className="text-neutral-500 hover:underline"
-            >
-              ← back to team
-            </Link>
           </div>
         </div>
       </div>
+
       <BoardToolbar
         ref={toolbarRef}
         tree={tree}
@@ -202,13 +195,14 @@ export default function BoardPage() {
           setNewTaskOpen(true);
         }}
       />
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex-1 overflow-x-auto p-4">
-          <div className="flex gap-4">
+        <div className="flex-1 overflow-x-auto overflow-y-hidden bg-ink-50">
+          <div className="flex h-full min-w-min gap-3 p-4 sm:p-6">
             {tree.columns
               .sort((a, b) => a.position - b.position)
               .map((c) => (
@@ -217,6 +211,7 @@ export default function BoardPage() {
                   column={c}
                   tasks={tasksByCol(c.id)}
                   labels={tree.labels}
+                  members={members.data ?? []}
                   onAdd={() => addTaskShortcut(c.id)}
                   onCardClick={(t) => setSelected(t)}
                 />
@@ -224,6 +219,7 @@ export default function BoardPage() {
           </div>
         </div>
       </DndContext>
+
       {newTaskOpen && (
         <NewTaskModal
           tree={tree}
@@ -242,6 +238,6 @@ export default function BoardPage() {
           onClose={() => setSelected(null)}
         />
       )}
-    </div>
+    </AppShell>
   );
 }

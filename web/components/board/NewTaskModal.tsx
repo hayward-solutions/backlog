@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, BoardTree, Label, Member, Priority, Task, User } from "@/lib/api";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { Field, Input, Select, Textarea } from "@/components/ui/Input";
+import { LabelPill } from "@/components/ui/Badge";
+import { priorityLabel } from "@/components/ui/PriorityIcon";
 
 export function NewTaskModal({
   tree,
@@ -73,201 +78,181 @@ export function NewTaskModal({
     onError: (e: Error) => alert(e.message),
   });
 
-  const canSubmit = title.trim() && columnId && reporterId && !create.isPending;
+  const canSubmit = !!title.trim() && !!columnId && !!reporterId && !create.isPending;
   const epics = tree.tasks.filter((t) => t.is_epic);
 
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (canSubmit) create.mutate();
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-10 w-[640px] max-w-full max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl">
-        <header className="flex items-center justify-between border-b px-5 py-3">
-          <h2 className="text-sm font-semibold">New task</h2>
-          <button onClick={onClose} className="text-neutral-500">
-            ✕
-          </button>
-        </header>
-        <form
-          className="space-y-4 p-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (canSubmit) create.mutate();
-          }}
-        >
-          <label className="block">
-            <span className="text-xs text-neutral-500">Title</span>
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 w-full rounded border border-neutral-300 px-3 py-2 text-sm"
+    <Modal
+      title={isEpic ? "Create epic" : "Create task"}
+      onClose={onClose}
+      width={680}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={!canSubmit}
+            onClick={() => canSubmit && create.mutate()}
+          >
+            {create.isPending ? "Creating…" : isEpic ? "Create epic" : "Create task"}
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="space-y-4">
+        <Field label="Title">
+          <Input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="What needs to be done?"
+            required
+          />
+        </Field>
+        <Field label="Description" hint="Markdown supported in future versions.">
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={4}
+            placeholder="Add more detail…"
+          />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Column">
+            <Select
+              value={columnId}
+              onChange={(e) => setColumnId(e.target.value)}
+              className="w-full"
+            >
+              {sortedCols.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Priority">
+            <Select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as Priority)}
+              className="w-full"
+            >
+              {(["low", "med", "high", "urgent"] as Priority[]).map((p) => (
+                <option key={p} value={p}>
+                  {priorityLabel(p)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Assignee">
+            <Select
+              value={assigneeId}
+              onChange={(e) => setAssigneeId(e.target.value)}
+              className="w-full"
+            >
+              <option value="">Unassigned</option>
+              {(members.data ?? []).map((m) => (
+                <option key={m.user.id} value={m.user.id}>
+                  {m.user.display_name || m.user.email}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Reporter">
+            <Select
+              value={reporterId}
+              onChange={(e) => setReporterId(e.target.value)}
+              className="w-full"
               required
+            >
+              {(members.data ?? []).map((m) => (
+                <option key={m.user.id} value={m.user.id}>
+                  {m.user.display_name || m.user.email}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Estimate (hours)">
+            <Input
+              type="number"
+              step="0.25"
+              min="0"
+              value={estimate}
+              onChange={(e) => setEstimate(e.target.value)}
+              placeholder="e.g. 2.5"
             />
-          </label>
-          <label className="block">
-            <span className="text-xs text-neutral-500">Description</span>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              className="mt-1 w-full rounded border border-neutral-300 px-3 py-2 text-sm"
+          </Field>
+          <Field label="Deadline">
+            <Input
+              type="datetime-local"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
             />
-          </label>
+          </Field>
+          <Field label="Epic" className="col-span-2">
+            <Select
+              value={epicId}
+              onChange={(e) => setEpicId(e.target.value)}
+              disabled={isEpic}
+              className="w-full"
+            >
+              <option value="">(none)</option>
+              {epics.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.title}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
 
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <label>
-              <span className="text-xs text-neutral-500">Column</span>
-              <select
-                value={columnId}
-                onChange={(e) => setColumnId(e.target.value)}
-                className="mt-1 w-full rounded border border-neutral-300 px-2 py-1"
-              >
-                {sortedCols.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className="text-xs text-neutral-500">Priority</span>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as Priority)}
-                className="mt-1 w-full rounded border border-neutral-300 px-2 py-1"
-              >
-                <option value="low">low</option>
-                <option value="med">med</option>
-                <option value="high">high</option>
-                <option value="urgent">urgent</option>
-              </select>
-            </label>
-            <label>
-              <span className="text-xs text-neutral-500">Assignee</span>
-              <select
-                value={assigneeId}
-                onChange={(e) => setAssigneeId(e.target.value)}
-                className="mt-1 w-full rounded border border-neutral-300 px-2 py-1"
-              >
-                <option value="">(unassigned)</option>
-                {(members.data ?? []).map((m) => (
-                  <option key={m.user.id} value={m.user.id}>
-                    {m.user.display_name || m.user.email}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className="text-xs text-neutral-500">Reporter</span>
-              <select
-                value={reporterId}
-                onChange={(e) => setReporterId(e.target.value)}
-                className="mt-1 w-full rounded border border-neutral-300 px-2 py-1"
-                required
-              >
-                {(members.data ?? []).map((m) => (
-                  <option key={m.user.id} value={m.user.id}>
-                    {m.user.display_name || m.user.email}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className="text-xs text-neutral-500">Estimate (h)</span>
-              <input
-                type="number"
-                step="0.25"
-                min="0"
-                value={estimate}
-                onChange={(e) => setEstimate(e.target.value)}
-                className="mt-1 w-full rounded border border-neutral-300 px-2 py-1"
-              />
-            </label>
-            <label>
-              <span className="text-xs text-neutral-500">Deadline</span>
-              <input
-                type="datetime-local"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
-                className="mt-1 w-full rounded border border-neutral-300 px-2 py-1"
-              />
-            </label>
-            <label className="col-span-2">
-              <span className="text-xs text-neutral-500">Epic</span>
-              <select
-                value={epicId}
-                onChange={(e) => setEpicId(e.target.value)}
-                className="mt-1 w-full rounded border border-neutral-300 px-2 py-1"
-                disabled={isEpic}
-              >
-                <option value="">(none)</option>
-                {epics.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="col-span-2 flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={isEpic}
-                onChange={(e) => {
-                  setIsEpic(e.target.checked);
-                  if (e.target.checked) setEpicId("");
-                }}
-              />
-              <span className="text-xs text-neutral-600">This task is an epic</span>
-            </label>
-          </div>
+        <label className="flex items-center gap-2 rounded-md border border-ink-200 bg-ink-50 px-3 py-2 text-sm">
+          <input
+            type="checkbox"
+            checked={isEpic}
+            className="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
+            onChange={(e) => {
+              setIsEpic(e.target.checked);
+              if (e.target.checked) setEpicId("");
+            }}
+          />
+          <span className="font-medium text-ink-800">This task is an epic</span>
+          <span className="text-ink-500">— groups child tasks under a shared goal.</span>
+        </label>
 
-          {tree.labels.length > 0 && (
-            <div>
-              <span className="text-xs text-neutral-500">Labels</span>
-              <div className="mt-1 flex flex-wrap gap-2">
-                {tree.labels.map((l: Label) => {
-                  const on = labelIds.includes(l.id);
-                  return (
-                    <button
-                      type="button"
-                      key={l.id}
-                      onClick={() =>
-                        setLabelIds((cur) =>
-                          cur.includes(l.id) ? cur.filter((x) => x !== l.id) : [...cur, l.id]
-                        )
-                      }
-                      className={`rounded border px-2 py-0.5 text-xs ${
-                        on ? "text-white" : "text-neutral-700"
-                      }`}
-                      style={{
-                        borderColor: l.color,
-                        background: on ? l.color : "transparent",
-                      }}
-                    >
-                      {l.name}
-                    </button>
-                  );
-                })}
-              </div>
+        {tree.labels.length > 0 && (
+          <Field label="Labels">
+            <div className="flex flex-wrap gap-2">
+              {tree.labels.map((l: Label) => {
+                const on = labelIds.includes(l.id);
+                return (
+                  <LabelPill
+                    key={l.id}
+                    name={l.name}
+                    color={l.color}
+                    selected={on}
+                    onClick={() =>
+                      setLabelIds((cur) =>
+                        cur.includes(l.id)
+                          ? cur.filter((x) => x !== l.id)
+                          : [...cur, l.id]
+                      )
+                    }
+                  />
+                );
+              })}
             </div>
-          )}
-
-          <div className="flex justify-end gap-2 border-t pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded border px-4 py-2 text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              disabled={!canSubmit}
-              className="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-50"
-            >
-              {create.isPending ? "Creating…" : "Create task"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          </Field>
+        )}
+      </form>
+    </Modal>
   );
 }

@@ -8,7 +8,6 @@ import { AppShell } from "@/components/AppShell";
 import { Breadcrumbs } from "@/components/TopBar";
 import { NewTaskModal } from "@/components/board/NewTaskModal";
 import { TaskDrawer } from "@/components/board/TaskDrawer";
-import { taskKey } from "@/components/board/Card";
 import {
   BoardToolbar,
   ToolbarState,
@@ -224,7 +223,7 @@ export default function BoardTasksPage() {
                   className="cursor-pointer border-t hover:bg-brand-50/40"
                 >
                   <td className="whitespace-nowrap border-b border-ink-100 px-3 py-2 font-mono text-[11.5px] font-semibold text-ink-600">
-                    {taskKey(t.id)}
+                    {t.key}
                   </td>
                   <td className="border-b border-ink-100 px-3 py-2">
                     <div className="flex items-center gap-2">

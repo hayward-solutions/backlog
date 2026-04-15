@@ -63,6 +63,7 @@ export interface Board {
   id: string;
   team_id: string;
   name: string;
+  key: string;
   description: string;
   archived_at?: string | null;
   created_at: string;
@@ -90,6 +91,7 @@ export interface Task {
   column_id: string;
   epic_id?: string | null;
   is_epic: boolean;
+  key: string;
   title: string;
   description: string;
   priority: Priority;

@@ -83,6 +83,7 @@ type Board struct {
 	ID          uuid.UUID  `json:"id"`
 	TeamID      uuid.UUID  `json:"team_id"`
 	Name        string     `json:"name"`
+	Key         string     `json:"key"`
 	Description string     `json:"description"`
 	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
@@ -135,6 +136,7 @@ type Task struct {
 	ColumnID      uuid.UUID   `json:"column_id"`
 	EpicID        *uuid.UUID  `json:"epic_id,omitempty"`
 	IsEpic        bool        `json:"is_epic"`
+	Key           string      `json:"key"`
 	Title         string      `json:"title"`
 	Description   string      `json:"description"`
 	Priority      Priority    `json:"priority"`

@@ -10,7 +10,7 @@ import { LabelPill } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { PriorityIcon, priorityLabel } from "@/components/ui/PriorityIcon";
 import { IconEpic, IconTrash } from "@/components/ui/icons";
-import { taskKey } from "./Card";
+import { taskPath } from "./Card";
 
 export function TaskDrawer({
   task,
@@ -144,7 +144,14 @@ export function TaskDrawer({
       subtitle={
         <span className="flex items-center gap-1.5">
           <span className="font-mono font-semibold text-ink-700">
-            {taskKey(task.id)}
+            {taskPath(task, tree.tasks).map((k, i, arr) => (
+              <span key={`${k}-${i}`}>
+                {i > 0 && <span className="mx-1 text-ink-300">/</span>}
+                <span className={i === arr.length - 1 ? "text-ink-800" : "text-ink-500"}>
+                  {k}
+                </span>
+              </span>
+            ))}
           </span>
           {col && (
             <>

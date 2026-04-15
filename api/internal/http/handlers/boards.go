@@ -31,22 +31,29 @@ func (h *BoardHandler) Create(w http.ResponseWriter, r *http.Request) {
 	teamID, _ := urlUUID(r, "teamID")
 	var body struct {
 		Name        string `json:"name"`
+		Key         string `json:"key"`
 		Description string `json:"description"`
 	}
 	if err := readJSON(r, &body); err != nil || body.Name == "" {
 		httpErr(w, http.StatusBadRequest, "bad body")
 		return
 	}
+	key, err := h.Store.AllocateBoardKey(r.Context(), teamID, body.Key, body.Name)
+	if err != nil {
+		httpErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	b := domain.Board{
 		ID:          uuid.Must(uuid.NewV7()),
 		TeamID:      teamID,
 		Name:        body.Name,
+		Key:         key,
 		Description: body.Description,
 	}
-	err := h.Store.WithTx(r.Context(), func(tx pgx.Tx) error {
+	err = h.Store.WithTx(r.Context(), func(tx pgx.Tx) error {
 		if _, err := tx.Exec(r.Context(),
-			`INSERT INTO boards (id, team_id, name, description) VALUES ($1,$2,$3,$4)`,
-			b.ID, b.TeamID, b.Name, b.Description); err != nil {
+			`INSERT INTO boards (id, team_id, name, key, description) VALUES ($1,$2,$3,$4,$5)`,
+			b.ID, b.TeamID, b.Name, b.Key, b.Description); err != nil {
 			return err
 		}
 		defaults := []struct {

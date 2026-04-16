@@ -215,6 +215,11 @@ func (h *BoardHandler) Get(w http.ResponseWriter, r *http.Request) {
 		internalErr(w, r, err, "internal error")
 		return
 	}
+	team, err := h.Store.GetTeam(r.Context(), b.TeamID)
+	if err != nil {
+		internalErr(w, r, err, "internal error")
+		return
+	}
 	if cols == nil {
 		cols = []domain.Column{}
 	}
@@ -230,6 +235,7 @@ func (h *BoardHandler) Get(w http.ResponseWriter, r *http.Request) {
 		"columns":   cols,
 		"tasks":     tasks,
 		"labels":    labels,
+		"team_name": team.Name,
 		"your_role": role,
 	})
 }

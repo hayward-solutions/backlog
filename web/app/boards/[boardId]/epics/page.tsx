@@ -161,7 +161,7 @@ export default function BoardEpicsPage() {
         <Breadcrumbs
           items={[
             { label: "Teams", href: "/teams" },
-            { label: "Team", href: `/teams/${data.board.team_id}` },
+            { label: data.team_name, href: `/teams/${data.board.team_id}` },
             { label: data.board.name, href: `/boards/${boardId}` },
             { label: "Epics" },
           ]}

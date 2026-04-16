@@ -6,7 +6,7 @@ import { api, Comment, Member } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
 import { Avatar } from "@/components/ui/Avatar";
-import { IconTrash } from "@/components/ui/icons";
+import { IconPencil, IconTrash } from "@/components/ui/icons";
 import { Markdown } from "@/components/ui/Markdown";
 
 export function Comments({
@@ -32,6 +32,8 @@ export function Comments({
   });
 
   const [body, setBody] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
 
   const create = useMutation({
     mutationFn: () =>
@@ -43,6 +45,20 @@ export function Comments({
       setBody("");
       qc.invalidateQueries({ queryKey: key });
       qc.invalidateQueries({ queryKey: ["events", taskId] });
+    },
+    onError: (e: Error) => alert(e.message),
+  });
+
+  const update = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: string }) =>
+      api<Comment>(`/comments/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ body }),
+      }),
+    onSuccess: () => {
+      setEditingId(null);
+      setEditBody("");
+      qc.invalidateQueries({ queryKey: key });
     },
     onError: (e: Error) => alert(e.message),
   });
@@ -75,19 +91,75 @@ export function Comments({
                     {c.edited_at && " (edited)"}
                   </span>
                 </div>
-                {c.author_id === currentUserId && (
-                  <button
-                    className="rounded-xs p-1 text-ink-500 hover:bg-danger-50 hover:text-danger-600"
-                    title="Delete"
-                    onClick={() => {
-                      if (confirm("Delete this comment?")) del.mutate(c.id);
-                    }}
-                  >
-                    <IconTrash size={13} />
-                  </button>
+                {c.author_id === currentUserId && editingId !== c.id && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      className="rounded-xs p-1 text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+                      title="Edit"
+                      onClick={() => {
+                        setEditingId(c.id);
+                        setEditBody(c.body);
+                      }}
+                    >
+                      <IconPencil size={13} />
+                    </button>
+                    <button
+                      className="rounded-xs p-1 text-ink-500 hover:bg-danger-50 hover:text-danger-600"
+                      title="Delete"
+                      onClick={() => {
+                        if (confirm("Delete this comment?")) del.mutate(c.id);
+                      }}
+                    >
+                      <IconTrash size={13} />
+                    </button>
+                  </div>
                 )}
               </div>
-              <Markdown source={c.body} />
+              {editingId === c.id ? (
+                <form
+                  className="space-y-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editBody.trim() && !update.isPending) {
+                      update.mutate({ id: c.id, body: editBody });
+                    }
+                  }}
+                >
+                  <Textarea
+                    value={editBody}
+                    onChange={(e) => setEditBody(e.target.value)}
+                    rows={3}
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditingId(null);
+                        setEditBody("");
+                      }}
+                      disabled={update.isPending}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={
+                        !editBody.trim() ||
+                        editBody === c.body ||
+                        update.isPending
+                      }
+                    >
+                      {update.isPending ? "Saving…" : "Save"}
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <Markdown source={c.body} />
+              )}
             </div>
           </li>
         ))}

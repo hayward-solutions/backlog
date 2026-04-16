@@ -30,7 +30,8 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 		AssigneeID    *uuid.UUID  `json:"assignee_id,omitempty"`
 		ReporterID    *uuid.UUID  `json:"reporter_id,omitempty"`
 		EstimateHours *float64    `json:"estimate_hours,omitempty"`
-		DeadlineAt    *time.Time  `json:"deadline_at,omitempty"`
+		StartAt       *time.Time  `json:"start_at,omitempty"`
+		DueAt         *time.Time  `json:"due_at,omitempty"`
 		LabelIDs      []uuid.UUID `json:"label_ids"`
 	}
 	if err := readJSON(r, &body); err != nil || body.Title == "" || body.ColumnID == uuid.Nil {
@@ -66,7 +67,8 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 			return u.ID
 		}(),
 		EstimateHours: body.EstimateHours,
-		DeadlineAt:    body.DeadlineAt,
+		StartAt:       body.StartAt,
+		DueAt:         body.DueAt,
 		Position:      pos,
 		CreatedAt:     time.Now().UTC(),
 	}
@@ -119,8 +121,10 @@ func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ClearAssignee bool             `json:"clear_assignee,omitempty"`
 		EstimateHours *float64         `json:"estimate_hours,omitempty"`
 		ClearEstimate bool             `json:"clear_estimate,omitempty"`
-		DeadlineAt    *time.Time       `json:"deadline_at,omitempty"`
-		ClearDeadline bool             `json:"clear_deadline,omitempty"`
+		StartAt       *time.Time       `json:"start_at,omitempty"`
+		ClearStart    bool             `json:"clear_start,omitempty"`
+		DueAt         *time.Time       `json:"due_at,omitempty"`
+		ClearDue      bool             `json:"clear_due,omitempty"`
 		EpicID        *uuid.UUID       `json:"epic_id,omitempty"`
 		ClearEpic     bool             `json:"clear_epic,omitempty"`
 		ReporterID    *uuid.UUID       `json:"reporter_id,omitempty"`
@@ -138,8 +142,10 @@ func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ClearAssignee: body.ClearAssignee,
 		EstimateHours: body.EstimateHours,
 		ClearEstimate: body.ClearEstimate,
-		DeadlineAt:    body.DeadlineAt,
-		ClearDeadline: body.ClearDeadline,
+		StartAt:       body.StartAt,
+		ClearStart:    body.ClearStart,
+		DueAt:         body.DueAt,
+		ClearDue:      body.ClearDue,
 		EpicID:        body.EpicID,
 		ClearEpic:     body.ClearEpic,
 		ReporterID:    body.ReporterID,
@@ -174,8 +180,11 @@ func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if body.ClearEstimate || body.EstimateHours != nil {
 		h.writeEvent(r, id, "estimate_changed", map[string]any{"to": body.EstimateHours})
 	}
-	if body.ClearDeadline || body.DeadlineAt != nil {
-		h.writeEvent(r, id, "deadline_changed", map[string]any{"to": body.DeadlineAt})
+	if body.ClearStart || body.StartAt != nil {
+		h.writeEvent(r, id, "start_changed", map[string]any{"to": body.StartAt})
+	}
+	if body.ClearDue || body.DueAt != nil {
+		h.writeEvent(r, id, "due_changed", map[string]any{"to": body.DueAt})
 	}
 	if body.ClearEpic || body.EpicID != nil {
 		h.writeEvent(r, id, "epic_changed", map[string]any{"to": body.EpicID})

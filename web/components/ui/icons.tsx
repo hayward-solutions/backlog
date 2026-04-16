@@ -200,3 +200,9 @@ export const IconArchive = (p: IconProps) => (
     <path d="M4 9v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9M10 13h4" />
   </svg>
 );
+
+export const IconTimeline = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M3 5h10M7 12h10M5 19h12" />
+  </svg>
+);

@@ -11,7 +11,7 @@ A self-hosted kanban and task-management tool for small teams. Go API + Next.js 
 
 - **Teams** group members, boards, and labels.
 - **Boards** are kanban boards with custom columns (todo / in_progress / done).
-- **Tasks** support priority, assignee, reporter, estimate, deadline, labels, and an immutable activity log.
+- **Tasks** support priority, assignee, reporter, estimate, start/due dates, labels, and an immutable activity log.
 - **Epics** are tasks that group other tasks; completion % is derived from child done/total.
 - **Realtime** updates flow over per-board Server-Sent Events.
 
@@ -38,6 +38,7 @@ On first boot the API creates an admin user from `ADMIN_EMAIL` / `ADMIN_PASSWORD
 ### Boards, tasks, epics
 - Kanban board view with drag-drop between/within columns (`@dnd-kit`).
 - Tasks list view with sort, per-column search, and filters (status / assignee / reporter / label).
+- Timeline view (Gantt-style) that plots tasks by start/due date for scheduling work.
 - Epics view with progress bars, expandable child-task rows, and one-click "+ Task" under an epic.
 - Task drawer with inline edit, activity log, auto-saving label chips, and inline label creation.
 - Role-gated Settings page per board (details, columns, labels, danger zone).
@@ -97,7 +98,7 @@ All configuration lives in the `.env` file consumed by `docker-compose.yml`.
 5. In an incognito window, open the link and accept — Alice lands on the team.
 6. Create a board "Sprint 1" → three default columns appear.
 7. Board **Settings** → add a label "docs" (pick a color).
-8. Back on the board, **+ New task** → title "Write docs", priority high, estimate 4h, deadline tomorrow, assign Alice, toggle the `docs` label, Create.
+8. Back on the board, **+ New task** → title "Write docs", priority high, estimate 4h, due tomorrow, assign Alice, toggle the `docs` label, Create.
 9. Drag Backlog → In Progress → Done. Open the task drawer and confirm the activity log shows `created`, `moved_column` ×2, `completed`.
 10. Open the board in a second browser signed in as Alice; drag a card and confirm the first window updates within ~1s (SSE).
 11. Try to demote yourself from owner while Alice is not an owner → API returns `409 team must have at least one owner`.

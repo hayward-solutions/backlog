@@ -29,10 +29,10 @@ func (s *Store) CreateTask(ctx context.Context, t *domain.Task) error {
 		t.Key = boardKey + "-" + padSeq(seq)
 		_, err := tx.Exec(ctx,
 			`INSERT INTO tasks (id, board_id, column_id, epic_id, is_epic, key, title, description,
-				priority, assignee_id, reporter_id, estimate_hours, deadline_at, position, completed_at)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+				priority, assignee_id, reporter_id, estimate_hours, start_at, due_at, position, completed_at)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
 			t.ID, t.BoardID, t.ColumnID, t.EpicID, t.IsEpic, t.Key, t.Title, t.Description,
-			string(t.Priority), t.AssigneeID, t.ReporterID, t.EstimateHours, t.DeadlineAt, t.Position, t.CompletedAt)
+			string(t.Priority), t.AssigneeID, t.ReporterID, t.EstimateHours, t.StartAt, t.DueAt, t.Position, t.CompletedAt)
 		return err
 	})
 }
@@ -42,10 +42,10 @@ func (s *Store) GetTask(ctx context.Context, id uuid.UUID) (domain.Task, error) 
 	var pr string
 	err := s.Pool.QueryRow(ctx,
 		`SELECT id, board_id, column_id, epic_id, is_epic, key, title, description, priority,
-			assignee_id, reporter_id, estimate_hours, deadline_at, position, created_at, completed_at
+			assignee_id, reporter_id, estimate_hours, start_at, due_at, position, created_at, completed_at
 		 FROM tasks WHERE id = $1`, id).
 		Scan(&t.ID, &t.BoardID, &t.ColumnID, &t.EpicID, &t.IsEpic, &t.Key, &t.Title, &t.Description, &pr,
-			&t.AssigneeID, &t.ReporterID, &t.EstimateHours, &t.DeadlineAt, &t.Position, &t.CreatedAt, &t.CompletedAt)
+			&t.AssigneeID, &t.ReporterID, &t.EstimateHours, &t.StartAt, &t.DueAt, &t.Position, &t.CreatedAt, &t.CompletedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -77,7 +77,7 @@ func (s *Store) taskLabels(ctx context.Context, taskID uuid.UUID) ([]uuid.UUID, 
 func (s *Store) ListTasksByBoard(ctx context.Context, boardID uuid.UUID) ([]domain.Task, error) {
 	rows, err := s.Pool.Query(ctx,
 		`SELECT id, board_id, column_id, epic_id, is_epic, key, title, description, priority,
-			assignee_id, reporter_id, estimate_hours, deadline_at, position, created_at, completed_at
+			assignee_id, reporter_id, estimate_hours, start_at, due_at, position, created_at, completed_at
 		 FROM tasks WHERE board_id = $1 ORDER BY column_id, position`, boardID)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func (s *Store) ListTasksByBoard(ctx context.Context, boardID uuid.UUID) ([]doma
 		var t domain.Task
 		var pr string
 		if err := rows.Scan(&t.ID, &t.BoardID, &t.ColumnID, &t.EpicID, &t.IsEpic, &t.Key, &t.Title, &t.Description, &pr,
-			&t.AssigneeID, &t.ReporterID, &t.EstimateHours, &t.DeadlineAt, &t.Position, &t.CreatedAt, &t.CompletedAt); err != nil {
+			&t.AssigneeID, &t.ReporterID, &t.EstimateHours, &t.StartAt, &t.DueAt, &t.Position, &t.CreatedAt, &t.CompletedAt); err != nil {
 			return nil, err
 		}
 		t.Priority = domain.Priority(pr)
@@ -130,8 +130,10 @@ type TaskUpdate struct {
 	ClearAssignee bool
 	EstimateHours *float64
 	ClearEstimate bool
-	DeadlineAt    *time.Time
-	ClearDeadline bool
+	StartAt       *time.Time
+	ClearStart    bool
+	DueAt         *time.Time
+	ClearDue      bool
 	EpicID        *uuid.UUID
 	ClearEpic     bool
 	ReporterID    *uuid.UUID
@@ -165,10 +167,15 @@ func (s *Store) UpdateTask(ctx context.Context, id uuid.UUID, u TaskUpdate) erro
 	} else if u.EstimateHours != nil {
 		add("estimate_hours", *u.EstimateHours)
 	}
-	if u.ClearDeadline {
-		sets = append(sets, "deadline_at = NULL")
-	} else if u.DeadlineAt != nil {
-		add("deadline_at", *u.DeadlineAt)
+	if u.ClearStart {
+		sets = append(sets, "start_at = NULL")
+	} else if u.StartAt != nil {
+		add("start_at", *u.StartAt)
+	}
+	if u.ClearDue {
+		sets = append(sets, "due_at = NULL")
+	} else if u.DueAt != nil {
+		add("due_at", *u.DueAt)
 	}
 	if u.ClearEpic {
 		sets = append(sets, "epic_id = NULL")

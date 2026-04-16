@@ -25,7 +25,7 @@ export function taskPath(task: Task, allTasks: Task[]): string[] {
   return chain;
 }
 
-function formatDeadline(iso: string) {
+function formatDueDate(iso: string) {
   const d = new Date(iso);
   const now = new Date();
   const diffMs = d.getTime() - now.getTime();
@@ -58,7 +58,7 @@ export function Card({
   };
   const taskLabels = labels.filter((l) => task.label_ids.includes(l.id));
   const overdue =
-    task.deadline_at && !task.completed_at && new Date(task.deadline_at) < new Date();
+    task.due_at && !task.completed_at && new Date(task.due_at) < new Date();
   const assignee = task.assignee_id
     ? members.find((m) => m.user.id === task.assignee_id)?.user
     : undefined;
@@ -113,14 +113,15 @@ export function Card({
               {task.estimate_hours}h
             </span>
           )}
-          {task.deadline_at && (
+          {task.due_at && (
             <span
               className={`inline-flex items-center gap-0.5 ${
                 overdue ? "font-semibold text-danger-600" : ""
               }`}
+              title={`Due ${new Date(task.due_at).toLocaleString()}`}
             >
               <IconCalendar size={11} />
-              {formatDeadline(task.deadline_at)}
+              {formatDueDate(task.due_at)}
             </span>
           )}
           {assignee ? (

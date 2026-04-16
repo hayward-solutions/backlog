@@ -5,6 +5,7 @@ type Permission string
 const (
 	PermViewTeam       Permission = "view_team"
 	PermManageTasks    Permission = "manage_tasks"
+	PermComment        Permission = "comment"
 	PermManageLabels   Permission = "manage_labels"
 	PermManageBoards   Permission = "manage_boards"
 	PermDeleteBoards   Permission = "delete_boards"
@@ -21,6 +22,8 @@ func Allows(role Role, p Permission) bool {
 		return role.AtLeast(RoleViewer)
 	case PermManageTasks:
 		return role.AtLeast(RoleMember)
+	case PermComment:
+		return role.AtLeast(RoleViewer)
 	case PermManageLabels, PermManageBoards:
 		return role.AtLeast(RoleEditor)
 	case PermDeleteBoards, PermManageMembers, PermDeleteTeam:

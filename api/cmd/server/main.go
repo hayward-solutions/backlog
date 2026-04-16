@@ -20,6 +20,7 @@ import (
 	"github.com/haywardsolutions/backlog/api/internal/events"
 	apphttp "github.com/haywardsolutions/backlog/api/internal/http"
 	mw "github.com/haywardsolutions/backlog/api/internal/http/middleware"
+	"github.com/haywardsolutions/backlog/api/internal/storage"
 	"github.com/haywardsolutions/backlog/api/internal/store"
 )
 
@@ -75,9 +76,19 @@ func main() {
 	}
 	publicBaseURL := envOr("PUBLIC_BASE_URL", "")
 
+	sc, err := storage.FromEnv(context.Background())
+	if err != nil {
+		log.Fatalf("storage: %v", err)
+	}
+	if sc != nil {
+		log.Printf("object storage enabled (bucket=%s)", sc.Bucket())
+	} else {
+		log.Printf("object storage disabled (STORAGE_S3_BUCKET unset)")
+	}
+
 	srv := &nethttp.Server{
 		Addr:              ":" + port,
-		Handler:           apphttp.NewRouter(s, hub, oidcCfg, publicBaseURL, allowedOrigins),
+		Handler:           apphttp.NewRouter(s, hub, oidcCfg, publicBaseURL, allowedOrigins, sc),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

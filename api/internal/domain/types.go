@@ -159,6 +159,48 @@ type TaskEvent struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type Comment struct {
+	ID        uuid.UUID   `json:"id"`
+	TaskID    uuid.UUID   `json:"task_id"`
+	AuthorID  uuid.UUID   `json:"author_id"`
+	Body      string      `json:"body"`
+	CreatedAt time.Time   `json:"created_at"`
+	EditedAt  *time.Time  `json:"edited_at,omitempty"`
+	Attachments []Attachment `json:"attachments"`
+}
+
+type AttachmentKind string
+
+const (
+	AttachmentFile     AttachmentKind = "file"
+	AttachmentInternal AttachmentKind = "internal"
+)
+
+func (k AttachmentKind) Valid() bool {
+	switch k {
+	case AttachmentFile, AttachmentInternal:
+		return true
+	}
+	return false
+}
+
+type Attachment struct {
+	ID           uuid.UUID      `json:"id"`
+	TeamID       uuid.UUID      `json:"team_id"`
+	UploaderID   uuid.UUID      `json:"uploader_id"`
+	Kind         AttachmentKind `json:"kind"`
+	Title        string         `json:"title"`
+	StorageKey   *string        `json:"-"`
+	Filename     *string        `json:"filename,omitempty"`
+	ContentType  *string        `json:"content_type,omitempty"`
+	SizeBytes    *int64         `json:"size_bytes,omitempty"`
+	URL          *string        `json:"-"` // retained for legacy rows; no longer populated
+	TargetType   *string        `json:"target_type,omitempty"`
+	TargetID     *uuid.UUID     `json:"target_id,omitempty"`
+	CreatedAt    time.Time      `json:"created_at"`
+	DownloadURL  string         `json:"download_url,omitempty"`
+}
+
 type Session struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID

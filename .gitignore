@@ -13,3 +13,6 @@ web/.next/
 web/out/
 web/.turbo/
 web/tsconfig.tsbuildinfo
+
+# Playwright MCP scratch (test-run artifacts)
+.playwright-mcp/

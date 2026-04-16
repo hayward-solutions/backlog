@@ -121,3 +121,67 @@ const roleRank: Record<Role, number> = {
 export function canManageBoards(role: Role): boolean {
   return roleRank[role] >= roleRank.editor;
 }
+
+// Comments & attachments
+
+export type AttachmentKind = "file" | "internal";
+
+export interface Attachment {
+  id: string;
+  team_id: string;
+  uploader_id: string;
+  kind: AttachmentKind;
+  title: string;
+  filename?: string | null;
+  content_type?: string | null;
+  size_bytes?: number | null;
+  target_type?: "task" | "board" | null;
+  target_id?: string | null;
+  created_at: string;
+  download_url?: string;
+}
+
+export interface Comment {
+  id: string;
+  task_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  edited_at?: string | null;
+  attachments: Attachment[];
+}
+
+/**
+ * Upload a file as an attachment (multipart). Bypasses the JSON helper.
+ */
+export async function uploadAttachment(
+  teamId: string,
+  file: File,
+  title?: string
+): Promise<Attachment> {
+  const fd = new FormData();
+  fd.append("file", file);
+  if (title) fd.append("title", title);
+  const res = await fetch(`${API_BASE}/api/v1/teams/${teamId}/attachments`, {
+    method: "POST",
+    credentials: "include",
+    body: fd,
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try {
+      const j = await res.json();
+      msg = j.error || msg;
+    } catch {}
+    throw new ApiError(msg, res.status);
+  }
+  return res.json();
+}
+
+/**
+ * Absolute URL for attachment download endpoint (redirects to a fresh
+ * presigned URL). Safe to embed in <img src>.
+ */
+export function attachmentDownloadURL(id: string): string {
+  return `${API_BASE}/api/v1/attachments/${id}/download`;
+}

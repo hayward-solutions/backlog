@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { api, BoardTree, Label, Member, Priority, Task } from "@/lib/api";
+import { api, BoardTree, Label, Member, Priority, Task, User } from "@/lib/api";
 import { Drawer } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Input";
@@ -10,6 +10,9 @@ import { LabelPill } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { PriorityIcon, priorityLabel } from "@/components/ui/PriorityIcon";
 import { IconEpic, IconTrash } from "@/components/ui/icons";
+import { Markdown } from "@/components/ui/Markdown";
+import { Comments } from "./Comments";
+import { Attachments } from "./Attachments";
 import { taskPath } from "./Card";
 
 export function TaskDrawer({
@@ -37,6 +40,14 @@ export function TaskDrawer({
   );
   const [labelIds, setLabelIds] = useState<string[]>(task.label_ids);
   const [epicId, setEpicId] = useState(task.epic_id ?? "");
+  const [editDesc, setEditDesc] = useState(false);
+
+  const me = useQuery({
+    queryKey: ["me"],
+    queryFn: () => api<User>("/auth/me"),
+  });
+  // Anyone who can see the task can comment and attach.
+  const canComment = true;
 
   useEffect(() => {
     setTitle(task.title);
@@ -192,12 +203,51 @@ export function TaskDrawer({
 
         {/* Description */}
         <Field label="Description">
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={5}
-            placeholder="Add a description…"
-          />
+          {editDesc ? (
+            <div className="space-y-2">
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={6}
+                placeholder="Add a description… (markdown supported, images via attachment:<id>)"
+              />
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => {
+                    save.mutate(undefined, { onSuccess: () => setEditDesc(false) });
+                  }}
+                  disabled={save.isPending}
+                >
+                  Save
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setDescription(task.description);
+                    setEditDesc(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="cursor-text rounded-md border border-transparent px-2 py-1 hover:border-ink-200"
+              onClick={() => setEditDesc(true)}
+              role="button"
+              tabIndex={0}
+            >
+              {description ? (
+                <Markdown source={description} />
+              ) : (
+                <span className="text-sm text-ink-500">Add a description…</span>
+              )}
+            </div>
+          )}
         </Field>
 
         {/* Properties panel */}
@@ -394,6 +444,21 @@ export function TaskDrawer({
           >
             Delete
           </Button>
+        </div>
+
+        {/* Attachments */}
+        <div className="border-t border-ink-200 pt-4">
+          <Attachments taskId={task.id} teamId={teamId} canEdit={canComment} />
+        </div>
+
+        {/* Comments */}
+        <div className="border-t border-ink-200 pt-4">
+          <Comments
+            taskId={task.id}
+            teamId={teamId}
+            currentUserId={me.data?.id ?? ""}
+            canComment={canComment}
+          />
         </div>
 
         {/* Activity */}

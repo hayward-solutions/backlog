@@ -11,10 +11,11 @@ import (
 	"github.com/haywardsolutions/backlog/api/internal/events"
 	"github.com/haywardsolutions/backlog/api/internal/http/handlers"
 	mw "github.com/haywardsolutions/backlog/api/internal/http/middleware"
+	"github.com/haywardsolutions/backlog/api/internal/storage"
 	"github.com/haywardsolutions/backlog/api/internal/store"
 )
 
-func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, publicBaseURL string, allowedOrigins []string) http.Handler {
+func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, publicBaseURL string, allowedOrigins []string, sc *storage.Client) http.Handler {
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
@@ -30,6 +31,8 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 	boardH := &handlers.BoardHandler{Store: s, Hub: hub}
 	taskH := &handlers.TaskHandler{Store: s, Hub: hub}
 	streamH := &handlers.StreamHandler{Hub: hub, Store: s}
+	commentH := &handlers.CommentHandler{Store: s, Hub: hub, Storage: sc}
+	attachH := &handlers.AttachmentHandler{Store: s, Storage: sc}
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -113,6 +116,13 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 			r.With(mw.RequirePerm(domain.PermManageTasks)).Post("/tasks", taskH.Create)
 		})
 
+		// Team attachment routes (upload/create; listed via task).
+		r.Route("/teams/{teamID}/attachments", func(r chi.Router) {
+			r.Use(mw.RequireAuth(s))
+			r.Use(mw.ResolveTeamRole(s, handlers.ResolveTeamIDFromURL))
+			r.With(mw.RequirePerm(domain.PermComment)).Post("/", attachH.Create)
+		})
+
 		// Column-scoped (resolve team via column)
 		r.Route("/columns/{columnID}", func(r chi.Router) {
 			r.Use(mw.RequireAuth(s))
@@ -130,6 +140,32 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 			r.With(mw.RequirePerm(domain.PermManageTasks)).Patch("/", taskH.Update)
 			r.With(mw.RequirePerm(domain.PermManageTasks)).Post("/move", taskH.Move)
 			r.With(mw.RequirePerm(domain.PermManageTasks)).Delete("/", taskH.Delete)
+
+			// Comments on task
+			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/comments", commentH.List)
+			r.With(mw.RequirePerm(domain.PermComment)).Post("/comments", commentH.Create)
+
+			// Attachments on task
+			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/attachments", attachH.ListForTask)
+			r.With(mw.RequirePerm(domain.PermComment)).Post("/attachments", attachH.AttachToTask)
+			r.With(mw.RequirePerm(domain.PermComment)).Delete("/attachments/{attachmentID}", attachH.DetachFromTask)
+		})
+
+		// Comment mutate/delete — resolve team via comment
+		r.Route("/comments/{commentID}", func(r chi.Router) {
+			r.Use(mw.RequireAuth(s))
+			r.Use(mw.ResolveTeamRole(s, handlers.ResolveTeamIDFromComment(s)))
+			r.With(mw.RequirePerm(domain.PermComment)).Patch("/", commentH.Update)
+			r.With(mw.RequirePerm(domain.PermComment)).Delete("/", commentH.Delete)
+		})
+
+		// Attachment metadata/download/delete — resolve team via attachment
+		r.Route("/attachments/{attachmentID}", func(r chi.Router) {
+			r.Use(mw.RequireAuth(s))
+			r.Use(mw.ResolveTeamRole(s, handlers.ResolveTeamIDFromAttachment(s)))
+			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/", attachH.Get)
+			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/download", attachH.Download)
+			r.With(mw.RequirePerm(domain.PermComment)).Delete("/", attachH.Delete)
 		})
 	})
 

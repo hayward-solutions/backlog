@@ -195,7 +195,7 @@ export default function BoardSettingsPage() {
         <Breadcrumbs
           items={[
             { label: "Teams", href: "/teams" },
-            { label: "Team", href: `/teams/${tree.board.team_id}` },
+            { label: tree.team_name, href: `/teams/${tree.board.team_id}` },
             { label: tree.board.name, href: `/boards/${boardId}` },
             { label: "Settings" },
           ]}

@@ -127,6 +127,7 @@ export interface BoardTree {
   columns: Column[];
   tasks: Task[];
   labels: Label[];
+  team_name: string;
   your_role: Role;
 }
 

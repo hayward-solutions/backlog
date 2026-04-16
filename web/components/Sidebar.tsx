@@ -12,6 +12,7 @@ import {
   IconList,
   IconPlus,
   IconSettings,
+  IconTimeline,
   IconUsers,
   IconHome,
 } from "@/components/ui/icons";
@@ -286,6 +287,13 @@ function BoardLink({
             icon={<IconList size={14} />}
           >
             Tasks
+          </BoardSubLink>
+          <BoardSubLink
+            href={`${base}/timeline`}
+            active={pathname === `${base}/timeline`}
+            icon={<IconTimeline size={14} />}
+          >
+            Timeline
           </BoardSubLink>
           <BoardSubLink
             href={`${base}/epics`}

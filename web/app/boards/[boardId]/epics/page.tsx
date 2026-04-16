@@ -23,7 +23,7 @@ import {
   IconPlus,
 } from "@/components/ui/icons";
 
-type SortKey = "title" | "progress" | "deadline" | "priority" | "created";
+type SortKey = "title" | "progress" | "start" | "due" | "priority" | "created";
 
 const priorityRank: Record<string, number> = { low: 0, med: 1, high: 2, urgent: 3 };
 
@@ -97,9 +97,14 @@ export default function BoardEpicsPage() {
           return (a.pct - b.pct) * mult;
         case "priority":
           return (priorityRank[a.epic.priority] - priorityRank[b.epic.priority]) * mult;
-        case "deadline": {
-          const av = a.epic.deadline_at ? new Date(a.epic.deadline_at).getTime() : Infinity;
-          const bv = b.epic.deadline_at ? new Date(b.epic.deadline_at).getTime() : Infinity;
+        case "start": {
+          const av = a.epic.start_at ? new Date(a.epic.start_at).getTime() : Infinity;
+          const bv = b.epic.start_at ? new Date(b.epic.start_at).getTime() : Infinity;
+          return (av - bv) * mult;
+        }
+        case "due": {
+          const av = a.epic.due_at ? new Date(a.epic.due_at).getTime() : Infinity;
+          const bv = b.epic.due_at ? new Date(b.epic.due_at).getTime() : Infinity;
           return (av - bv) * mult;
         }
         case "created":
@@ -223,8 +228,11 @@ export default function BoardEpicsPage() {
               </Th>
               <th className="border-b border-ink-200 px-3 py-2">Assignee</th>
               <th className="border-b border-ink-200 px-3 py-2">Reporter</th>
-              <Th onClick={() => toggle("deadline")} sort={sort} dir={dir} k="deadline">
-                Deadline
+              <Th onClick={() => toggle("start")} sort={sort} dir={dir} k="start">
+                Start
+              </Th>
+              <Th onClick={() => toggle("due")} sort={sort} dir={dir} k="due">
+                Due
               </Th>
               <Th onClick={() => toggle("created")} sort={sort} dir={dir} k="created">
                 Created
@@ -236,9 +244,9 @@ export default function BoardEpicsPage() {
             {sortedRows.map(({ epic, children, done, total, pct }) => {
               const isOpen = expanded.has(epic.id);
               const overdue =
-                epic.deadline_at &&
+                epic.due_at &&
                 !epic.completed_at &&
-                new Date(epic.deadline_at) < new Date();
+                new Date(epic.due_at) < new Date();
               const assignee = epic.assignee_id
                 ? userById.get(epic.assignee_id)
                 : undefined;
@@ -341,13 +349,21 @@ export default function BoardEpicsPage() {
                       )}
                     </td>
                     <td
+                      className="cursor-pointer whitespace-nowrap border-b border-ink-100 px-3 py-2 text-ink-700"
+                      onClick={() => setSelected(epic)}
+                    >
+                      {epic.start_at
+                        ? new Date(epic.start_at).toLocaleDateString()
+                        : ""}
+                    </td>
+                    <td
                       className={`cursor-pointer whitespace-nowrap border-b border-ink-100 px-3 py-2 ${
                         overdue ? "font-semibold text-danger-600" : "text-ink-700"
                       }`}
                       onClick={() => setSelected(epic)}
                     >
-                      {epic.deadline_at
-                        ? new Date(epic.deadline_at).toLocaleDateString()
+                      {epic.due_at
+                        ? new Date(epic.due_at).toLocaleDateString()
                         : ""}
                     </td>
                     <td
@@ -414,8 +430,13 @@ export default function BoardEpicsPage() {
                           />
                         </td>
                         <td className="border-b border-ink-100 px-3 py-1.5 text-xs text-ink-600">
-                          {c.deadline_at
-                            ? new Date(c.deadline_at).toLocaleDateString()
+                          {c.start_at
+                            ? new Date(c.start_at).toLocaleDateString()
+                            : ""}
+                        </td>
+                        <td className="border-b border-ink-100 px-3 py-1.5 text-xs text-ink-600">
+                          {c.due_at
+                            ? new Date(c.due_at).toLocaleDateString()
                             : ""}
                         </td>
                         <td className="border-b border-ink-100 px-3 py-1.5 text-xs text-ink-500">
@@ -428,7 +449,7 @@ export default function BoardEpicsPage() {
                     <tr className="border-t bg-ink-50/60">
                       <td className="border-b border-ink-100"></td>
                       <td
-                        colSpan={8}
+                        colSpan={9}
                         className="border-b border-ink-100 px-3 py-2 pl-8 text-xs text-ink-500"
                       >
                         No tasks in this epic yet.
@@ -440,7 +461,7 @@ export default function BoardEpicsPage() {
             })}
             {sortedRows.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-16 text-center text-sm text-ink-500">
+                <td colSpan={10} className="px-3 py-16 text-center text-sm text-ink-500">
                   No epics yet.
                 </td>
               </tr>

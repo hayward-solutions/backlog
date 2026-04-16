@@ -143,7 +143,8 @@ type Task struct {
 	AssigneeID    *uuid.UUID  `json:"assignee_id,omitempty"`
 	ReporterID    uuid.UUID   `json:"reporter_id"`
 	EstimateHours *float64    `json:"estimate_hours,omitempty"`
-	DeadlineAt    *time.Time  `json:"deadline_at,omitempty"`
+	StartAt       *time.Time  `json:"start_at,omitempty"`
+	DueAt         *time.Time  `json:"due_at,omitempty"`
 	Position      float64     `json:"position"`
 	CreatedAt     time.Time   `json:"created_at"`
 	CompletedAt   *time.Time  `json:"completed_at,omitempty"`

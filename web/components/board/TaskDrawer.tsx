@@ -35,8 +35,11 @@ export function TaskDrawer({
   const [estimate, setEstimate] = useState(
     task.estimate_hours != null ? String(task.estimate_hours) : ""
   );
-  const [deadline, setDeadline] = useState(
-    task.deadline_at ? task.deadline_at.slice(0, 16) : ""
+  const [startAt, setStartAt] = useState(
+    task.start_at ? task.start_at.slice(0, 16) : ""
+  );
+  const [dueAt, setDueAt] = useState(
+    task.due_at ? task.due_at.slice(0, 16) : ""
   );
   const [labelIds, setLabelIds] = useState<string[]>(task.label_ids);
   const [epicId, setEpicId] = useState(task.epic_id ?? "");
@@ -56,7 +59,8 @@ export function TaskDrawer({
     setAssigneeId(task.assignee_id ?? "");
     setReporterId(task.reporter_id);
     setEstimate(task.estimate_hours != null ? String(task.estimate_hours) : "");
-    setDeadline(task.deadline_at ? task.deadline_at.slice(0, 16) : "");
+    setStartAt(task.start_at ? task.start_at.slice(0, 16) : "");
+    setDueAt(task.due_at ? task.due_at.slice(0, 16) : "");
     setLabelIds(task.label_ids);
     setEpicId(task.epic_id ?? "");
   }, [task.id]);
@@ -82,8 +86,10 @@ export function TaskDrawer({
       else body.clear_assignee = true;
       if (estimate) body.estimate_hours = Number(estimate);
       else body.clear_estimate = true;
-      if (deadline) body.deadline_at = new Date(deadline).toISOString();
-      else body.clear_deadline = true;
+      if (startAt) body.start_at = new Date(startAt).toISOString();
+      else body.clear_start = true;
+      if (dueAt) body.due_at = new Date(dueAt).toISOString();
+      else body.clear_due = true;
       if (epicId) body.epic_id = epicId;
       else body.clear_epic = true;
       if (reporterId && reporterId !== task.reporter_id) body.reporter_id = reporterId;
@@ -118,6 +124,78 @@ export function TaskDrawer({
     },
     onError: (e: Error) => alert(e.message),
   });
+
+  // Auto-save metadata fields on commit so the drawer's primary "Save changes"
+  // button isn't required for individual edits. Title and description still
+  // stage since free-text on-keystroke saves aren't desirable.
+  const savePartial = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api<Task>(`/tasks/${task.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["board", task.board_id] });
+      qc.invalidateQueries({ queryKey: ["events", task.id] });
+    },
+    onError: (e: Error) => alert(e.message),
+  });
+
+  function commitTitle(next: string) {
+    const trimmed = next.trim();
+    if (!trimmed || trimmed === task.title) return;
+    savePartial.mutate({ title: trimmed });
+  }
+
+  function commitPriority(next: Priority) {
+    if (next === task.priority) return;
+    savePartial.mutate({ priority: next });
+  }
+
+  function commitAssignee(next: string) {
+    const current = task.assignee_id ?? "";
+    if (next === current) return;
+    savePartial.mutate(next ? { assignee_id: next } : { clear_assignee: true });
+  }
+
+  function commitReporter(next: string) {
+    if (!next || next === task.reporter_id) return;
+    savePartial.mutate({ reporter_id: next });
+  }
+
+  function commitEstimate(next: string) {
+    const current = task.estimate_hours != null ? String(task.estimate_hours) : "";
+    if (next === current) return;
+    if (next === "") {
+      savePartial.mutate({ clear_estimate: true });
+      return;
+    }
+    const n = Number(next);
+    if (Number.isNaN(n)) return;
+    savePartial.mutate({ estimate_hours: n });
+  }
+
+  function commitEpic(next: string) {
+    const current = task.epic_id ?? "";
+    if (next === current) return;
+    savePartial.mutate(next ? { epic_id: next } : { clear_epic: true });
+  }
+
+  function commitStartAt(next: string) {
+    const current = task.start_at ? task.start_at.slice(0, 16) : "";
+    if (next === current) return;
+    savePartial.mutate(
+      next ? { start_at: new Date(next).toISOString() } : { clear_start: true }
+    );
+  }
+
+  function commitDueAt(next: string) {
+    const current = task.due_at ? task.due_at.slice(0, 16) : "";
+    if (next === current) return;
+    savePartial.mutate(
+      next ? { due_at: new Date(next).toISOString() } : { clear_due: true }
+    );
+  }
 
   const toggleLabel = (id: string) => {
     const next = labelIds.includes(id)
@@ -197,6 +275,10 @@ export function TaskDrawer({
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            onBlur={(e) => commitTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
             className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-[18px] font-semibold leading-tight text-ink-900 outline-none hover:bg-ink-50 focus:border-ink-200 focus:bg-white focus:shadow-focus"
           />
         </div>
@@ -275,7 +357,11 @@ export function TaskDrawer({
                 <PriorityIcon priority={priority} size={14} />
                 <Select
                   value={priority}
-                  onChange={(e) => setPriority(e.target.value as Priority)}
+                  onChange={(e) => {
+                    const next = e.target.value as Priority;
+                    setPriority(next);
+                    commitPriority(next);
+                  }}
                   className="w-full sm:w-40"
                 >
                   {(["low", "med", "high", "urgent"] as Priority[]).map((p) => (
@@ -302,7 +388,11 @@ export function TaskDrawer({
                 )}
                 <Select
                   value={assigneeId}
-                  onChange={(e) => setAssigneeId(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setAssigneeId(next);
+                    commitAssignee(next);
+                  }}
                   className="w-full sm:w-56"
                 >
                   <option value="">Unassigned</option>
@@ -326,7 +416,11 @@ export function TaskDrawer({
                 />
                 <Select
                   value={reporterId}
-                  onChange={(e) => setReporterId(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setReporterId(next);
+                    commitReporter(next);
+                  }}
                   className="w-full sm:w-56"
                 >
                   {(members.data ?? []).map((m) => (
@@ -346,22 +440,43 @@ export function TaskDrawer({
                 step="0.25"
                 value={estimate}
                 onChange={(e) => setEstimate(e.target.value)}
+                onBlur={(e) => commitEstimate(e.target.value)}
                 placeholder="hours"
                 className="w-full sm:w-32"
               />
             </PropertyRow>
-            <PropertyRow label="Deadline">
+            <PropertyRow label="Start">
               <Input
                 type="datetime-local"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
+                value={startAt}
+                onChange={(e) => {
+                  setStartAt(e.target.value);
+                  commitStartAt(e.target.value);
+                }}
+                onBlur={(e) => commitStartAt(e.target.value)}
+                className="w-56"
+              />
+            </PropertyRow>
+            <PropertyRow label="Due">
+              <Input
+                type="datetime-local"
+                value={dueAt}
+                onChange={(e) => {
+                  setDueAt(e.target.value);
+                  commitDueAt(e.target.value);
+                }}
+                onBlur={(e) => commitDueAt(e.target.value)}
                 className="w-56"
               />
             </PropertyRow>
             <PropertyRow label="Epic">
               <Select
                 value={epicId}
-                onChange={(e) => setEpicId(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setEpicId(next);
+                  commitEpic(next);
+                }}
                 className="w-full"
               >
                 <option value="">(none)</option>
@@ -427,24 +542,6 @@ export function TaskDrawer({
             </Button>
           </form>
         </section>
-
-        <div className="flex items-center gap-2 pt-2">
-          <Button
-            variant="primary"
-            disabled={save.isPending}
-            onClick={() => save.mutate()}
-          >
-            {save.isPending ? "Saving…" : "Save changes"}
-          </Button>
-          <Button
-            variant="danger"
-            onClick={() => {
-              if (confirm("Delete this task?")) del.mutate();
-            }}
-          >
-            Delete
-          </Button>
-        </div>
 
         {/* Attachments */}
         <div className="border-t border-ink-200 pt-4">

@@ -42,7 +42,8 @@ export function NewTaskModal({
   const [assigneeId, setAssigneeId] = useState("");
   const [reporterId, setReporterId] = useState("");
   const [estimate, setEstimate] = useState("");
-  const [deadline, setDeadline] = useState("");
+  const [startAt, setStartAt] = useState("");
+  const [dueAt, setDueAt] = useState("");
   const [epicId, setEpicId] = useState(defaultEpicId || "");
   const [isEpic, setIsEpic] = useState(!!defaultIsEpic);
   const [labelIds, setLabelIds] = useState<string[]>([]);
@@ -64,7 +65,8 @@ export function NewTaskModal({
       if (assigneeId) body.assignee_id = assigneeId;
       if (reporterId) body.reporter_id = reporterId;
       if (estimate) body.estimate_hours = Number(estimate);
-      if (deadline) body.deadline_at = new Date(deadline).toISOString();
+      if (startAt) body.start_at = new Date(startAt).toISOString();
+      if (dueAt) body.due_at = new Date(dueAt).toISOString();
       if (epicId) body.epic_id = epicId;
       return api<Task>(`/boards/${tree.board.id}/tasks`, {
         method: "POST",
@@ -190,11 +192,18 @@ export function NewTaskModal({
               placeholder="e.g. 2.5"
             />
           </Field>
-          <Field label="Deadline">
+          <Field label="Start">
             <Input
               type="datetime-local"
-              value={deadline}
-              onChange={(e) => setDeadline(e.target.value)}
+              value={startAt}
+              onChange={(e) => setStartAt(e.target.value)}
+            />
+          </Field>
+          <Field label="Due">
+            <Input
+              type="datetime-local"
+              value={dueAt}
+              onChange={(e) => setDueAt(e.target.value)}
             />
           </Field>
           <Field label="Epic" className="sm:col-span-2">

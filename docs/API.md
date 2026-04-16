@@ -88,7 +88,8 @@ All IDs are UUIDv7. Timestamps are RFC 3339 UTC.
   "assignee_id": "uuid",
   "reporter_id": "uuid",       // defaults to caller
   "estimate_hours": 4,
-  "deadline_at": "2026-01-01T12:00:00Z",
+  "start_at": "2026-01-01T09:00:00Z",
+  "due_at": "2026-01-01T12:00:00Z",
   "label_ids": ["uuid", "…"]
 }
 ```
@@ -104,7 +105,8 @@ All fields optional. To clear a nullable field, pass the matching `clear_*: true
   "priority": "high",
   "assignee_id": "uuid",  "clear_assignee": true,
   "estimate_hours": 4,    "clear_estimate": true,
-  "deadline_at": "…",     "clear_deadline": true,
+  "start_at": "…",        "clear_start": true,
+  "due_at": "…",          "clear_due": true,
   "epic_id": "uuid",      "clear_epic": true,
   "reporter_id": "uuid",
   "label_ids": ["uuid"]   // replaces the full set
@@ -113,7 +115,7 @@ All fields optional. To clear a nullable field, pass the matching `clear_*: true
 
 ### Event kinds (append-only)
 
-`created`, `title_changed`, `description_changed`, `priority_changed`, `assigned`, `unassigned`, `estimate_changed`, `deadline_changed`, `epic_changed`, `reporter_changed`, `moved_column`, `completed`, `reopened`.
+`created`, `title_changed`, `description_changed`, `priority_changed`, `assigned`, `unassigned`, `estimate_changed`, `start_changed`, `due_changed`, `epic_changed`, `reporter_changed`, `moved_column`, `completed`, `reopened`.
 
 ## Realtime
 

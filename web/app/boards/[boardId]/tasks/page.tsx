@@ -26,7 +26,8 @@ type SortKey =
   | "priority"
   | "assignee"
   | "reporter"
-  | "deadline"
+  | "start"
+  | "due"
   | "estimate"
   | "created";
 
@@ -97,9 +98,14 @@ export default function BoardTasksPage() {
           const bn = userById.get(b.reporter_id)?.name ?? "";
           return an.localeCompare(bn) * mult;
         }
-        case "deadline": {
-          const av = a.deadline_at ? new Date(a.deadline_at).getTime() : Infinity;
-          const bv = b.deadline_at ? new Date(b.deadline_at).getTime() : Infinity;
+        case "start": {
+          const av = a.start_at ? new Date(a.start_at).getTime() : Infinity;
+          const bv = b.start_at ? new Date(b.start_at).getTime() : Infinity;
+          return (av - bv) * mult;
+        }
+        case "due": {
+          const av = a.due_at ? new Date(a.due_at).getTime() : Infinity;
+          const bv = b.due_at ? new Date(b.due_at).getTime() : Infinity;
           return (av - bv) * mult;
         }
         case "estimate":
@@ -200,8 +206,11 @@ export default function BoardTasksPage() {
               <Th onClick={() => toggle("estimate")} sort={sort} dir={dir} k="estimate">
                 Est
               </Th>
-              <Th onClick={() => toggle("deadline")} sort={sort} dir={dir} k="deadline">
-                Deadline
+              <Th onClick={() => toggle("start")} sort={sort} dir={dir} k="start">
+                Start
+              </Th>
+              <Th onClick={() => toggle("due")} sort={sort} dir={dir} k="due">
+                Due
               </Th>
               <th className="border-b border-ink-200 px-3 py-2">Labels</th>
               <Th onClick={() => toggle("created")} sort={sort} dir={dir} k="created">
@@ -213,7 +222,7 @@ export default function BoardTasksPage() {
             {rows.map((t) => {
               const col = colById.get(t.column_id);
               const overdue =
-                t.deadline_at && !t.completed_at && new Date(t.deadline_at) < new Date();
+                t.due_at && !t.completed_at && new Date(t.due_at) < new Date();
               const assignee = t.assignee_id ? userById.get(t.assignee_id) : undefined;
               const reporter = userById.get(t.reporter_id);
               return (
@@ -276,15 +285,23 @@ export default function BoardTasksPage() {
                   <td className="whitespace-nowrap border-b border-ink-100 px-3 py-2 text-ink-700">
                     {t.estimate_hours != null ? `${t.estimate_hours}h` : ""}
                   </td>
+                  <td className="whitespace-nowrap border-b border-ink-100 px-3 py-2 text-ink-700">
+                    {t.start_at && (
+                      <span className="inline-flex items-center gap-1">
+                        <IconCalendar size={12} />
+                        {new Date(t.start_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </td>
                   <td
                     className={`whitespace-nowrap border-b border-ink-100 px-3 py-2 ${
                       overdue ? "font-semibold text-danger-600" : "text-ink-700"
                     }`}
                   >
-                    {t.deadline_at && (
+                    {t.due_at && (
                       <span className="inline-flex items-center gap-1">
                         <IconCalendar size={12} />
-                        {new Date(t.deadline_at).toLocaleDateString()}
+                        {new Date(t.due_at).toLocaleDateString()}
                       </span>
                     )}
                   </td>
@@ -305,7 +322,7 @@ export default function BoardTasksPage() {
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-3 py-16 text-center text-sm text-ink-500">
+                <td colSpan={11} className="px-3 py-16 text-center text-sm text-ink-500">
                   No tasks match.
                 </td>
               </tr>

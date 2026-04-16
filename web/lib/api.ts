@@ -97,7 +97,8 @@ export interface Task {
   assignee_id?: string | null;
   reporter_id: string;
   estimate_hours?: number | null;
-  deadline_at?: string | null;
+  start_at?: string | null;
+  due_at?: string | null;
   position: number;
   created_at: string;
   completed_at?: string | null;

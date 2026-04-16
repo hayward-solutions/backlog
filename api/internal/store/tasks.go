@@ -18,23 +18,30 @@ import (
 // return the final value to clients.
 func (s *Store) CreateTask(ctx context.Context, t *domain.Task) error {
 	return s.WithTx(ctx, func(tx pgx.Tx) error {
-		var boardKey string
-		var seq int
-		if err := tx.QueryRow(ctx,
-			`UPDATE boards SET task_seq = task_seq + 1
-			 WHERE id = $1
-			 RETURNING key, task_seq`, t.BoardID).Scan(&boardKey, &seq); err != nil {
-			return err
-		}
-		t.Key = boardKey + "-" + padSeq(seq)
-		_, err := tx.Exec(ctx,
-			`INSERT INTO tasks (id, board_id, column_id, epic_id, is_epic, key, title, description,
-				priority, assignee_id, reporter_id, estimate_hours, start_at, due_at, position, completed_at)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-			t.ID, t.BoardID, t.ColumnID, t.EpicID, t.IsEpic, t.Key, t.Title, t.Description,
-			string(t.Priority), t.AssigneeID, t.ReporterID, t.EstimateHours, t.StartAt, t.DueAt, t.Position, t.CompletedAt)
-		return err
+		return s.CreateTaskInTx(ctx, tx, t)
 	})
+}
+
+// CreateTaskInTx runs the same insert path within a caller-supplied
+// transaction. Used by the service-desk submission flow where the task and
+// submission-provenance record must land atomically.
+func (s *Store) CreateTaskInTx(ctx context.Context, tx pgx.Tx, t *domain.Task) error {
+	var boardKey string
+	var seq int
+	if err := tx.QueryRow(ctx,
+		`UPDATE boards SET task_seq = task_seq + 1
+		 WHERE id = $1
+		 RETURNING key, task_seq`, t.BoardID).Scan(&boardKey, &seq); err != nil {
+		return err
+	}
+	t.Key = boardKey + "-" + padSeq(seq)
+	_, err := tx.Exec(ctx,
+		`INSERT INTO tasks (id, board_id, column_id, epic_id, is_epic, key, title, description,
+			priority, assignee_id, reporter_id, estimate_hours, start_at, due_at, position, completed_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		t.ID, t.BoardID, t.ColumnID, t.EpicID, t.IsEpic, t.Key, t.Title, t.Description,
+		string(t.Priority), t.AssigneeID, t.ReporterID, t.EstimateHours, t.StartAt, t.DueAt, t.Position, t.CompletedAt)
+	return err
 }
 
 func (s *Store) GetTask(ctx context.Context, id uuid.UUID) (domain.Task, error) {

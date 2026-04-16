@@ -37,5 +37,22 @@ const nextConfig = {
       },
     ];
   },
+  // Legacy /desk/* URLs (tracking links sent to submitters before the
+  // rename) redirect to the new /service-desk/* structure so existing
+  // bookmarks keep working.
+  async redirects() {
+    return [
+      {
+        source: "/desk",
+        destination: "/service-desk",
+        permanent: true,
+      },
+      {
+        source: "/desk/:path*",
+        destination: "/service-desk/:path*",
+        permanent: true,
+      },
+    ];
+  },
 };
 module.exports = nextConfig;

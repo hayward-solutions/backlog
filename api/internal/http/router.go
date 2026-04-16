@@ -33,6 +33,8 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 	streamH := &handlers.StreamHandler{Hub: hub, Store: s}
 	commentH := &handlers.CommentHandler{Store: s, Hub: hub, Storage: sc}
 	attachH := &handlers.AttachmentHandler{Store: s, Storage: sc}
+	deskH := &handlers.ServiceDeskHandler{Store: s, Hub: hub}
+	handlers.RegisterServiceDeskStore(s)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -114,6 +116,11 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 
 			r.With(mw.RequirePerm(domain.PermManageBoards)).Post("/columns", boardH.CreateColumn)
 			r.With(mw.RequirePerm(domain.PermManageTasks)).Post("/tasks", taskH.Create)
+
+			// Service desk templates (scoped under their board so the team
+			// role check is already in place).
+			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/request-templates", deskH.ListTemplates)
+			r.With(mw.RequirePerm(domain.PermManageBoards)).Post("/request-templates", deskH.CreateTemplate)
 		})
 
 		// Team attachment routes (upload/create; listed via task).
@@ -149,6 +156,65 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/attachments", attachH.ListForTask)
 			r.With(mw.RequirePerm(domain.PermComment)).Post("/attachments", attachH.AttachToTask)
 			r.With(mw.RequirePerm(domain.PermComment)).Delete("/attachments/{attachmentID}", attachH.DetachFromTask)
+
+			// Service desk submission panel (only present for tasks that
+			// were created via an intake form).
+			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/submission", deskH.GetTaskSubmission)
+			// Portal thread (submitter<->team conversation). GET is
+			// visible to anyone on the team; POST requires comment
+			// perm because it's a team-to-submitter response.
+			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/desk-messages", deskH.ListTaskDeskMessages)
+			r.With(mw.RequirePerm(domain.PermComment)).Post("/desk-messages", deskH.CreateTaskDeskMessage)
+		})
+
+		// Request templates mutate/delete — resolve team via template's board.
+		r.Route("/request-templates/{templateID}", func(r chi.Router) {
+			r.Use(mw.RequireAuth(s))
+			r.Use(mw.ResolveTeamRole(s, handlers.ResolveTeamIDFromTemplate(s)))
+			r.With(mw.RequirePerm(domain.PermViewTeam)).Get("/", deskH.GetTemplate)
+			r.With(mw.RequirePerm(domain.PermManageBoards)).Patch("/", deskH.UpdateTemplate)
+			r.With(mw.RequirePerm(domain.PermManageBoards)).Delete("/", deskH.DeleteTemplate)
+			r.With(mw.RequirePerm(domain.PermManageBoards)).Post("/fields", deskH.CreateField)
+		})
+
+		// Field mutate/delete — resolve team via field's template's board.
+		r.Route("/request-fields/{fieldID}", func(r chi.Router) {
+			r.Use(mw.RequireAuth(s))
+			r.Use(mw.ResolveTeamRole(s, handlers.ResolveTeamIDFromField(s)))
+			r.With(mw.RequirePerm(domain.PermManageBoards)).Patch("/", deskH.UpdateField)
+			r.With(mw.RequirePerm(domain.PermManageBoards)).Delete("/", deskH.DeleteField)
+		})
+
+		// Signed-in "my requests" directory. Keyed off the submitter's
+		// user id captured at submission time — the original tracking
+		// token isn't needed.
+		r.Group(func(r chi.Router) {
+			r.Use(mw.RequireAuth(s))
+			r.Get("/desks/my-submissions", deskH.ListMySubmissions)
+			r.Get("/desks/my-submissions/{submissionID}", deskH.GetMySubmission)
+			r.Post("/desks/my-submissions/{submissionID}/messages", deskH.CreateMySubmissionMessage)
+		})
+
+		// Desk endpoints: no auth strictly required, but if a session
+		// cookie is present we attach the user so (a) internal-only boards
+		// are viewable by any signed-in user, and (b) the submission is
+		// tagged with the caller's user id. resolveDesk() enforces
+		// visibility rules.
+		r.Group(func(r chi.Router) {
+			r.Use(mw.OptionalAuth(s))
+			// Directory for the /service-desk landing page. Anon
+			// callers only see teams with at least one public desk;
+			// signed-in callers additionally see internal ones.
+			r.Get("/public/service-desk/teams", deskH.ListServiceDeskTeams)
+			r.Get("/public/service-desk/teams/{teamSlug}", deskH.GetServiceDeskTeam)
+
+			r.Get("/public/desks/{slug}", deskH.DeskInfo)
+			r.Post("/public/desks/{slug}/submissions", deskH.Submit)
+			r.Get("/public/desks/{slug}/track/{token}", deskH.Track)
+			// Submitter reply. The token is the capability, so no
+			// session is required — internal and public desks use
+			// the same endpoint.
+			r.Post("/public/desks/{slug}/track/{token}/messages", deskH.TrackReply)
 		})
 
 		// Comment mutate/delete — resolve team via comment

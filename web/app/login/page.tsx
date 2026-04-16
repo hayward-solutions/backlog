@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
@@ -161,6 +162,17 @@ export default function LoginPage() {
         <p className="mt-4 text-center text-xs text-ink-500">
           Need an account? Ask a server admin to invite you.
         </p>
+
+        {/* External route for submitters who don't have (or need) an
+            account — points at the service-desk directory. */}
+        <div className="mt-3 text-center">
+          <Link
+            href="/service-desk"
+            className="text-xs font-semibold text-brand-700 underline"
+          >
+            Submit a request without signing in →
+          </Link>
+        </div>
       </div>
     </main>
   );

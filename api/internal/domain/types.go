@@ -50,10 +50,11 @@ type User struct {
 }
 
 type Team struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Slug      string    `json:"slug"`
-	CreatedAt time.Time `json:"created_at"`
+	ID                  uuid.UUID `json:"id"`
+	Name                string    `json:"name"`
+	Slug                string    `json:"slug"`
+	ServiceDeskEnabled  bool      `json:"service_desk_enabled"`
+	CreatedAt           time.Time `json:"created_at"`
 }
 
 type Membership struct {
@@ -79,14 +80,49 @@ type Invite struct {
 	CreatedAt  time.Time  `json:"created_at"`
 }
 
+type BoardType string
+
+const (
+	BoardStandard    BoardType = "standard"
+	BoardServiceDesk BoardType = "service_desk"
+)
+
+func (t BoardType) Valid() bool {
+	switch t {
+	case BoardStandard, BoardServiceDesk:
+		return true
+	}
+	return false
+}
+
+type BoardVisibility string
+
+const (
+	VisibilityPrivate  BoardVisibility = "private"
+	VisibilityInternal BoardVisibility = "internal"
+	VisibilityPublic   BoardVisibility = "public"
+)
+
+func (v BoardVisibility) Valid() bool {
+	switch v {
+	case VisibilityPrivate, VisibilityInternal, VisibilityPublic:
+		return true
+	}
+	return false
+}
+
 type Board struct {
-	ID          uuid.UUID  `json:"id"`
-	TeamID      uuid.UUID  `json:"team_id"`
-	Name        string     `json:"name"`
-	Key         string     `json:"key"`
-	Description string     `json:"description"`
-	ArchivedAt  *time.Time `json:"archived_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID             uuid.UUID       `json:"id"`
+	TeamID         uuid.UUID       `json:"team_id"`
+	Name           string          `json:"name"`
+	Key            string          `json:"key"`
+	Description    string          `json:"description"`
+	Type           BoardType       `json:"type"`
+	Visibility     BoardVisibility `json:"visibility"`
+	PublicSlug     *string         `json:"public_slug,omitempty"`
+	IntakeColumnID *uuid.UUID      `json:"intake_column_id,omitempty"`
+	ArchivedAt     *time.Time      `json:"archived_at,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
 }
 
 type ColumnType string
@@ -206,4 +242,76 @@ type Session struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
 	ExpiresAt time.Time
+}
+
+// RequestFieldType enumerates the form-field input variants a template can
+// declare. Kept deliberately small — anything exotic (file upload, multi-
+// select) can be added later without migrating existing data.
+type RequestFieldType string
+
+const (
+	FieldText     RequestFieldType = "text"
+	FieldLongtext RequestFieldType = "longtext"
+	FieldSelect   RequestFieldType = "select"
+	FieldEmail    RequestFieldType = "email"
+	FieldURL      RequestFieldType = "url"
+	FieldNumber   RequestFieldType = "number"
+	FieldDate     RequestFieldType = "date"
+)
+
+func (t RequestFieldType) Valid() bool {
+	switch t {
+	case FieldText, FieldLongtext, FieldSelect, FieldEmail, FieldURL, FieldNumber, FieldDate:
+		return true
+	}
+	return false
+}
+
+type RequestTemplateField struct {
+	ID         uuid.UUID        `json:"id"`
+	TemplateID uuid.UUID        `json:"template_id"`
+	Key        string           `json:"key"`
+	Label      string           `json:"label"`
+	Type       RequestFieldType `json:"type"`
+	Required   bool             `json:"required"`
+	Position   float64          `json:"position"`
+	Options    []string         `json:"options"`
+	HelpText   string           `json:"help_text"`
+}
+
+type RequestTemplate struct {
+	ID              uuid.UUID              `json:"id"`
+	BoardID         uuid.UUID              `json:"board_id"`
+	Name            string                 `json:"name"`
+	Description     string                 `json:"description"`
+	Position        float64                `json:"position"`
+	DefaultPriority Priority               `json:"default_priority"`
+	ArchivedAt      *time.Time             `json:"archived_at,omitempty"`
+	CreatedAt       time.Time              `json:"created_at"`
+	Fields          []RequestTemplateField `json:"fields"`
+}
+
+type RequestSubmission struct {
+	ID              uuid.UUID         `json:"id"`
+	TemplateID      uuid.UUID         `json:"template_id"`
+	TaskID          uuid.UUID         `json:"task_id"`
+	SubmitterEmail  string            `json:"submitter_email"`
+	SubmitterName   string            `json:"submitter_name"`
+	SubmitterUserID *uuid.UUID        `json:"submitter_user_id,omitempty"`
+	Values          map[string]string `json:"values"`
+	CreatedAt       time.Time         `json:"created_at"`
+}
+
+// DeskMessage is one turn of the submitter<->team conversation attached to a
+// submission. FromSubmitter=true means the external requester wrote it;
+// false means a team member did. Kept separate from Comments so team-only
+// discussion can never be leaked to the tracking page.
+type DeskMessage struct {
+	ID             uuid.UUID  `json:"id"`
+	SubmissionID   uuid.UUID  `json:"submission_id"`
+	FromSubmitter  bool       `json:"from_submitter"`
+	AuthorUserID   *uuid.UUID `json:"author_user_id,omitempty"`
+	AuthorName     string     `json:"author_name"`
+	Body           string     `json:"body"`
+	CreatedAt      time.Time  `json:"created_at"`
 }

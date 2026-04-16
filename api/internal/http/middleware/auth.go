@@ -71,6 +71,32 @@ func TeamRoleFrom(ctx context.Context) (domain.Role, bool) {
 	return r, ok
 }
 
+// OptionalAuth attaches the caller's user/session to the context when a
+// valid session cookie is present, but does NOT 401 when it isn't. Used
+// by endpoints that need to distinguish "signed-in visitor" from
+// "anonymous submitter" (e.g. service-desk public forms that should
+// record the user id when available).
+func OptionalAuth(s *store.Store) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c, err := r.Cookie(SessionCookie)
+			if err == nil {
+				if sid, err := uuid.Parse(c.Value); err == nil {
+					if sess, err := s.GetSession(r.Context(), sid); err == nil {
+						if u, err := s.GetUser(r.Context(), sess.UserID); err == nil && u.DisabledAt == nil {
+							ctx := context.WithValue(r.Context(), ctxUser, u)
+							ctx = context.WithValue(ctx, ctxSessionID, sid)
+							next.ServeHTTP(w, r.WithContext(ctx))
+							return
+						}
+					}
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func RequireAuth(s *store.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

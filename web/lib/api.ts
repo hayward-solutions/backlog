@@ -50,8 +50,12 @@ export interface Team {
   id: string;
   name: string;
   slug: string;
+  service_desk_enabled: boolean;
   created_at: string;
 }
+
+export type BoardType = "standard" | "service_desk";
+export type BoardVisibility = "private" | "internal" | "public";
 
 export interface Member {
   user: User;
@@ -64,6 +68,10 @@ export interface Board {
   name: string;
   key: string;
   description: string;
+  type: BoardType;
+  visibility: BoardVisibility;
+  public_slug?: string | null;
+  intake_column_id?: string | null;
   archived_at?: string | null;
   created_at: string;
 }
@@ -185,4 +193,148 @@ export async function uploadAttachment(
  */
 export function attachmentDownloadURL(id: string): string {
   return `${API_BASE}/api/v1/attachments/${id}/download`;
+}
+
+// --- Service desk ---
+
+export type RequestFieldType =
+  | "text"
+  | "longtext"
+  | "select"
+  | "email"
+  | "url"
+  | "number"
+  | "date";
+
+export interface RequestTemplateField {
+  id: string;
+  template_id: string;
+  key: string;
+  label: string;
+  type: RequestFieldType;
+  required: boolean;
+  position: number;
+  options: string[];
+  help_text: string;
+}
+
+export interface RequestTemplate {
+  id: string;
+  board_id: string;
+  name: string;
+  description: string;
+  position: number;
+  default_priority: Priority;
+  archived_at?: string | null;
+  created_at: string;
+  fields: RequestTemplateField[];
+}
+
+export interface RequestSubmission {
+  id: string;
+  template_id: string;
+  task_id: string;
+  submitter_email: string;
+  submitter_name: string;
+  submitter_user_id?: string | null;
+  values: Record<string, string>;
+  created_at: string;
+}
+
+export interface DeskView {
+  name: string;
+  description: string;
+  slug: string;
+  visibility: BoardVisibility;
+  team_name: string;
+  team_slug: string;
+  templates: RequestTemplate[];
+}
+
+/** Entry on the /service-desk landing page. Only the team's display
+ * identity is exposed; ids stay server-side. */
+export interface ServiceDeskTeamSummary {
+  name: string;
+  slug: string;
+}
+
+/** Per-team desks page. `desks` is already filtered to what the
+ * caller is permitted to see (public for anon, +internal when authed). */
+export interface ServiceDeskTeamPage {
+  team: ServiceDeskTeamSummary;
+  desks: {
+    name: string;
+    description: string;
+    slug: string;
+    visibility: BoardVisibility;
+  }[];
+}
+
+export interface DeskMessage {
+  id: string;
+  submission_id: string;
+  from_submitter: boolean;
+  author_user_id?: string | null;
+  author_name: string;
+  body: string;
+  created_at: string;
+}
+
+/** One row on the signed-in /service-desk/mine list page. */
+export interface MySubmissionSummary {
+  submission_id: string;
+  desk_slug: string;
+  desk_name: string;
+  task_key: string;
+  title: string;
+  status: string;
+  status_kind: ColumnType;
+  completed: boolean;
+  submitted_at: string;
+}
+
+export interface DeskTrackingInfo {
+  desk: { slug: string; name: string };
+  task_key: string;
+  title: string;
+  status: string;
+  status_kind: ColumnType;
+  submitted_at: string;
+  submitter_email: string;
+  submitter_name: string;
+  values: Record<string, string>;
+  completed: boolean;
+  messages: DeskMessage[];
+}
+
+/**
+ * Unauthenticated fetch for the public desk endpoints. Kept separate
+ * from `api()` because we deliberately avoid sending the session cookie
+ * — a signed-in submitter doesn't need their session attached to the
+ * form they're filling out.
+ */
+export async function publicApi<T>(
+  path: string,
+  init: RequestInit = {}
+): Promise<T> {
+  const res = await fetch(`${API_BASE}/api/v1${path}`, {
+    // include so authed users can submit to internal desks; the
+    // OptionalAuth middleware picks it up when present.
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(init.headers || {}),
+    },
+    ...init,
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try {
+      const j = await res.json();
+      msg = j.error || msg;
+    } catch {}
+    throw new ApiError(msg, res.status);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
 }

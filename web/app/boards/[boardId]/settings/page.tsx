@@ -12,12 +12,14 @@ import { LabelPill, StatusPill } from "@/components/ui/Badge";
 import {
   IconArrowDown,
   IconArrowUp,
+  IconCheck,
   IconPlus,
   IconTrash,
 } from "@/components/ui/icons";
 import {
   api,
   BoardTree,
+  BoardVisibility,
   Column as ColumnT,
   ColumnType,
   Label,
@@ -80,9 +82,19 @@ export default function BoardSettingsPage() {
   });
 
   const updateBoard = useMutation({
-    mutationFn: (patch: { name: string; description: string; archived: boolean }) =>
+    mutationFn: (patch: {
+      name?: string;
+      description?: string;
+      archived?: boolean;
+      visibility?: BoardVisibility;
+      public_slug?: string;
+      clear_public_slug?: boolean;
+      intake_column_id?: string;
+      clear_intake_column?: boolean;
+    }) =>
       api(`/boards/${boardId}`, { method: "PATCH", body: JSON.stringify(patch) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["board", boardId] }),
+    onError: (e: Error) => alert(e.message),
   });
 
   const deleteBoard = useMutation({
@@ -137,6 +149,8 @@ export default function BoardSettingsPage() {
     },
     onError: (e: Error) => alert(e.message),
   });
+
+  const isDesk = query.data?.board.type === "service_desk";
 
   if (query.isLoading) {
     return (
@@ -375,6 +389,15 @@ export default function BoardSettingsPage() {
             </form>
           </section>
 
+          {/* Service desk */}
+          {isDesk && (
+            <ServiceDeskSection
+              board={tree.board}
+              columns={columns}
+              onUpdateBoard={(patch) => updateBoard.mutate(patch)}
+            />
+          )}
+
           {/* Labels */}
           <section className="surface p-5">
             <SectionHeader
@@ -512,3 +535,130 @@ function SectionHeader({
     </div>
   );
 }
+
+// --- Service desk subsection ---
+
+type BoardForDesk = BoardTree["board"];
+
+function ServiceDeskSection({
+  board,
+  columns,
+  onUpdateBoard,
+}: {
+  board: BoardForDesk;
+  columns: ColumnT[];
+  onUpdateBoard: (patch: {
+    visibility?: BoardVisibility;
+    public_slug?: string;
+    clear_public_slug?: boolean;
+    intake_column_id?: string;
+    clear_intake_column?: boolean;
+  }) => void;
+}) {
+  const [slugDraft, setSlugDraft] = useState(board.public_slug ?? "");
+  const [copied, setCopied] = useState(false);
+
+  const deskUrl =
+    board.public_slug && board.visibility !== "private"
+      ? `${window.location.origin}/service-desk/${board.public_slug}`
+      : null;
+
+  return (
+    <section className="surface p-5">
+      <SectionHeader
+        title="Service desk"
+        description="Control who can reach the intake form and which column new submissions land in."
+      />
+
+      <div className="mt-4 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Who can submit">
+            <Select
+              value={board.visibility}
+              onChange={(e) =>
+                onUpdateBoard({
+                  visibility: e.target.value as BoardVisibility,
+                })
+              }
+            >
+              <option value="private">Team only</option>
+              <option value="internal">Signed-in users</option>
+              <option value="public">Anyone (public)</option>
+            </Select>
+          </Field>
+          <Field label="Intake column">
+            <Select
+              value={board.intake_column_id ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "") onUpdateBoard({ clear_intake_column: true });
+                else onUpdateBoard({ intake_column_id: v });
+              }}
+            >
+              <option value="">— first column —</option>
+              {columns.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+
+        {board.visibility !== "private" && (
+          <Field
+            label="URL slug"
+            hint="Form lives at /service-desk/<slug>. Letters, digits, '-' or '_'."
+          >
+            <div className="flex gap-2">
+              <Input
+                value={slugDraft}
+                onChange={(e) => setSlugDraft(e.target.value)}
+                placeholder="support"
+                className="flex-1"
+              />
+              <Button
+                variant="secondary"
+                disabled={
+                  !slugDraft.trim() || slugDraft.trim() === (board.public_slug ?? "")
+                }
+                onClick={() => onUpdateBoard({ public_slug: slugDraft.trim() })}
+              >
+                Save slug
+              </Button>
+            </div>
+          </Field>
+        )}
+
+        {deskUrl && (
+          <div className="flex items-center gap-2 rounded-md border border-ink-200 bg-ink-50 px-3 py-2 text-xs">
+            <span className="font-semibold uppercase tracking-wide text-ink-500">
+              Form URL
+            </span>
+            <code className="flex-1 truncate font-mono text-ink-800">
+              {deskUrl}
+            </code>
+            <Button
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(deskUrl).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                });
+              }}
+            >
+              {copied ? (
+                <>
+                  <IconCheck size={12} /> Copied
+                </>
+              ) : (
+                "Copy"
+              )}
+            </Button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+

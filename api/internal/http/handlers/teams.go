@@ -60,13 +60,21 @@ func (h *TeamHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h *TeamHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, _ := urlUUID(r, "teamID")
 	var body struct {
-		Name string `json:"name"`
+		Name               *string `json:"name,omitempty"`
+		ServiceDeskEnabled *bool   `json:"service_desk_enabled,omitempty"`
 	}
-	if err := readJSON(r, &body); err != nil || body.Name == "" {
+	if err := readJSON(r, &body); err != nil {
 		httpErr(w, http.StatusBadRequest, "bad body")
 		return
 	}
-	if err := h.Store.UpdateTeam(r.Context(), id, body.Name); err != nil {
+	if body.Name != nil && *body.Name == "" {
+		httpErr(w, http.StatusBadRequest, "name must not be empty")
+		return
+	}
+	if err := h.Store.UpdateTeam(r.Context(), id, store.TeamUpdate{
+		Name:               body.Name,
+		ServiceDeskEnabled: body.ServiceDeskEnabled,
+	}); err != nil {
 		internalErr(w, r, err, "failed to update team")
 		return
 	}

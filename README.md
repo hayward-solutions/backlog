@@ -11,9 +11,10 @@ A self-hosted kanban and task-management tool for small teams. Go API + Next.js 
 
 - **Teams** group members, boards, and labels.
 - **Boards** are kanban boards with custom columns (todo / in_progress / done).
-- **Tasks** support priority, assignee, reporter, estimate, start/due dates, labels, and an immutable activity log.
+- **Tasks** support priority, assignee, reporter, estimate, start/due dates, labels, comments, attachments, and an immutable activity log.
 - **Epics** are tasks that group other tasks; completion % is derived from child done/total.
 - **Realtime** updates flow over per-board Server-Sent Events.
+- **Auth** is local email + password, with optional OIDC SSO (Okta, Google, Entra ID, etc.).
 
 ---
 
@@ -40,11 +41,13 @@ On first boot the API creates an admin user from `ADMIN_EMAIL` / `ADMIN_PASSWORD
 - Tasks list view with sort, per-column search, and filters (status / assignee / reporter / label).
 - Timeline view (Gantt-style) that plots tasks by start/due date for scheduling work.
 - Epics view with progress bars, expandable child-task rows, and one-click "+ Task" under an epic.
-- Task drawer with inline edit, activity log, auto-saving label chips, and inline label creation.
+- Task drawer with auto-saving fields, inline status change, copy-link, comments (with edit/delete), file attachments, and an immutable activity log.
 - Role-gated Settings page per board (details, columns, labels, danger zone).
+- Mobile-friendly layouts across board, list, timeline, and drawer.
 
 ### Users, teams, invites
 - Local email + password auth (argon2id), session-cookie, 30-day expiry.
+- Optional OIDC login — map a group claim to system-admin via `OIDC_ADMIN_GROUP`.
 - Team roles: **owner** / **editor** / **member** / **viewer**. System admins implicitly own every team.
 - Copy-paste invite tokens (no SMTP in v1).
 - Top-right account dropdown → **My account**, **Users** (admin), **Teams** (admin), **Sign out**.
@@ -86,6 +89,12 @@ All configuration lives in the `.env` file consumed by `docker-compose.yml`.
 | `API_PORT` | API listen port | `8080` |
 | `PUBLIC_BASE_URL` | Used to construct invite links | `http://localhost:3000` |
 | `NEXT_PUBLIC_API_BASE_URL` | Where the browser calls the API | `http://localhost:8080` |
+| `OIDC_ISSUER_URL` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | Enable SSO (set all three) | unset — SSO disabled |
+| `OIDC_REDIRECT_URL` | OIDC callback URL | `http://localhost:8080/api/v1/auth/oidc/callback` |
+| `OIDC_ADMIN_GROUP` / `OIDC_GROUPS_CLAIM` | Map a group claim value to `is_system_admin` | unset — no auto-admin |
+| `OIDC_PROVIDER_NAME` | Label shown on the "Sign in with …" button | `OIDC` |
+
+See `.env.example` for the full list of OIDC claim-mapping knobs.
 
 ---
 
@@ -120,7 +129,7 @@ The next start detects zero users and re-runs the bootstrap from `ADMIN_EMAIL` /
 
 ## Roadmap (v2)
 
-Comments, attachments, subtasks, OIDC / OAuth, SMTP-delivered invites, SQLite support, cross-team epics, WIP-limit enforcement, analytics dashboards, webhooks, API keys, scale-out SSE (Redis pub/sub), full-text search.
+Subtasks, SMTP-delivered invites, SQLite support, cross-team epics, WIP-limit enforcement, analytics dashboards, webhooks, API keys, scale-out SSE (Redis pub/sub), full-text search.
 
 ---
 

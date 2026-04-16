@@ -7,11 +7,19 @@ import { useState } from "react";
 
 import { AppShell } from "@/components/AppShell";
 import { Breadcrumbs } from "@/components/TopBar";
-import { api, Board, Member, Team } from "@/lib/api";
+import {
+  api,
+  Board,
+  BoardType,
+  BoardVisibility,
+  Member,
+  Team,
+} from "@/lib/api";
 import { Avatar, AvatarGroup } from "@/components/ui/Avatar";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Field, Input } from "@/components/ui/Input";
+import { Field, Input, Select } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { IconBoard, IconPlus, IconSettings } from "@/components/ui/icons";
 
@@ -35,17 +43,42 @@ export default function TeamPage() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [type, setType] = useState<BoardType>("standard");
+  const [visibility, setVisibility] = useState<BoardVisibility>("private");
+  const [publicSlug, setPublicSlug] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
+  const deskEnabled = !!team.data?.service_desk_enabled;
+
+  // If the team loses service_desk capability (or on first render) keep the
+  // form in a consistent state so we don't POST a service_desk type with a
+  // disabled team.
+  const resetDeskFields = () => {
+    setType("standard");
+    setVisibility("private");
+    setPublicSlug("");
+  };
+
   const create = useMutation({
-    mutationFn: () =>
-      api<Board>(`/teams/${teamId}/boards`, {
+    mutationFn: () => {
+      const body: Record<string, unknown> = {
+        name: name.trim(),
+        description: description.trim(),
+        type,
+      };
+      if (type === "service_desk") {
+        body.visibility = visibility;
+        if (visibility !== "private") body.public_slug = publicSlug.trim();
+      }
+      return api<Board>(`/teams/${teamId}/boards`, {
         method: "POST",
-        body: JSON.stringify({ name: name.trim(), description: description.trim() }),
-      }),
+        body: JSON.stringify(body),
+      });
+    },
     onSuccess: () => {
       setName("");
       setDescription("");
+      resetDeskFields();
       setErr(null);
       setOpen(false);
       qc.invalidateQueries({ queryKey: ["boards", teamId] });
@@ -114,22 +147,29 @@ export default function TeamPage() {
 
         {boards.isLoading && <p className="text-sm text-ink-500">Loading boards…</p>}
 
-        {boards.data && boards.data.length === 0 && (
-          <EmptyState
-            icon={<IconBoard size={18} />}
-            title="No boards yet"
-            description="Create your first board to start tracking tasks."
-            action={
-              <Button variant="primary" onClick={() => setOpen(true)}>
-                <IconPlus size={14} /> Create board
-              </Button>
-            }
-          />
-        )}
-
-        {boards.data && boards.data.length > 0 && (
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {boards.data.map((b) => (
+        {boards.data && (() => {
+          // Desk boards are hidden while the capability is disabled on the
+          // team; the data is preserved server-side.
+          const visible = deskEnabled
+            ? boards.data
+            : boards.data.filter((b) => b.type !== "service_desk");
+          if (visible.length === 0) {
+            return (
+              <EmptyState
+                icon={<IconBoard size={18} />}
+                title="No boards yet"
+                description="Create your first board to start tracking tasks."
+                action={
+                  <Button variant="primary" onClick={() => setOpen(true)}>
+                    <IconPlus size={14} /> Create board
+                  </Button>
+                }
+              />
+            );
+          }
+          return (
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {visible.map((b) => (
               <li key={b.id}>
                 <Link
                   href={`/boards/${b.id}`}
@@ -140,8 +180,19 @@ export default function TeamPage() {
                       <IconBoard size={16} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-[15px] font-semibold text-ink-900">
-                        {b.name}
+                      <div className="flex items-center gap-2">
+                        <div className="truncate text-[15px] font-semibold text-ink-900">
+                          {b.name}
+                        </div>
+                        {b.type === "service_desk" && (
+                          <Badge tone={b.visibility === "public" ? "green" : "purple"}>
+                            {b.visibility === "public"
+                              ? "Public desk"
+                              : b.visibility === "internal"
+                              ? "Internal desk"
+                              : "Desk"}
+                          </Badge>
+                        )}
                       </div>
                       {b.description ? (
                         <p className="mt-0.5 line-clamp-2 text-sm text-ink-600">
@@ -160,9 +211,10 @@ export default function TeamPage() {
                   </div>
                 </Link>
               </li>
-            ))}
-          </ul>
-        )}
+              ))}
+            </ul>
+          );
+        })()}
       </div>
 
       {open && (
@@ -210,6 +262,86 @@ export default function TeamPage() {
                 placeholder="What is this board for?"
               />
             </Field>
+            {deskEnabled && (
+              <Field
+                label="Type"
+                hint={
+                  type === "service_desk"
+                    ? "Service desks gain intake forms, a submissions panel, and a shareable form URL."
+                    : undefined
+                }
+              >
+                <Select
+                  value={type}
+                  onChange={(e) => {
+                    const next = e.target.value as BoardType;
+                    setType(next);
+                    if (next === "standard") {
+                      setVisibility("private");
+                      setPublicSlug("");
+                    }
+                  }}
+                  className="w-full"
+                >
+                  <option value="standard">Standard board</option>
+                  <option value="service_desk">Service desk</option>
+                </Select>
+              </Field>
+            )}
+            {type === "service_desk" && (
+              <>
+                <Field
+                  label="Who can submit requests?"
+                  hint={
+                    visibility === "public"
+                      ? "Anyone with the link — no sign-in required."
+                      : visibility === "internal"
+                      ? "Any signed-in user in this workspace."
+                      : "Only team members (you can share the form later by changing this)."
+                  }
+                >
+                  <Select
+                    value={visibility}
+                    onChange={(e) =>
+                      setVisibility(e.target.value as BoardVisibility)
+                    }
+                    className="w-full"
+                  >
+                    <option value="private">Team only</option>
+                    <option value="internal">Signed-in users</option>
+                    <option value="public">Anyone (public)</option>
+                  </Select>
+                </Field>
+                {visibility !== "private" && (
+                  <Field
+                    label="URL slug"
+                    hint="Used in the form URL: /service-desk/<slug>. Letters, digits, '-' or '_'."
+                  >
+                    <Input
+                      value={publicSlug}
+                      onChange={(e) => setPublicSlug(e.target.value)}
+                      placeholder="support"
+                    />
+                  </Field>
+                )}
+              </>
+            )}
+            {!deskEnabled && (
+              <p className="text-xs italic text-ink-500">
+                Want a customer-facing intake form? Enable service desk in{" "}
+                <Link
+                  href={`/teams/${teamId}/settings`}
+                  className="underline"
+                  onClick={() => {
+                    setOpen(false);
+                    setErr(null);
+                  }}
+                >
+                  team settings
+                </Link>
+                .
+              </p>
+            )}
             {err && (
               <div className="rounded-md border border-danger-200 bg-danger-50 px-3 py-2 text-sm text-danger-700">
                 {err}

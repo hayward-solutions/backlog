@@ -10,8 +10,8 @@ import {
   IconClose,
   IconEpic,
   IconList,
-  IconPlus,
   IconSettings,
+  IconTag,
   IconTimeline,
   IconUsers,
   IconHome,
@@ -123,25 +123,65 @@ export function Sidebar({
               Members & settings
             </SidebarLink>
 
-            <SidebarSectionTitle className="mt-3">
-              Boards
-            </SidebarSectionTitle>
-            <ul className="space-y-0.5">
-              {(boards.data ?? []).map((b) => (
-                <li key={b.id}>
-                  <BoardLink
-                    board={b}
-                    isActive={b.id === boardId}
-                    pathname={pathname ?? ""}
-                  />
-                </li>
-              ))}
-              {boards.data?.length === 0 && (
-                <li className="px-2 py-1 text-xs text-ink-500">
-                  No boards yet
-                </li>
-              )}
-            </ul>
+            {(() => {
+              const all = boards.data ?? [];
+              const standardBoards = all.filter(
+                (b) => b.type !== "service_desk"
+              );
+              // Desk boards are hidden while the team has service desk
+              // disabled — the data is preserved server-side, but the UI
+              // treats the capability as off.
+              const deskBoards = activeTeam.service_desk_enabled
+                ? all.filter((b) => b.type === "service_desk")
+                : [];
+              return (
+                <>
+                  <SidebarSectionTitle className="mt-3">
+                    Boards
+                  </SidebarSectionTitle>
+                  <ul className="space-y-0.5">
+                    {standardBoards.map((b) => (
+                      <li key={b.id}>
+                        <BoardLink
+                          board={b}
+                          isActive={b.id === boardId}
+                          pathname={pathname ?? ""}
+                        />
+                      </li>
+                    ))}
+                    {all.length === 0 && (
+                      <li className="px-2 py-1 text-xs text-ink-500">
+                        No boards yet
+                      </li>
+                    )}
+                    {all.length > 0 && standardBoards.length === 0 && (
+                      <li className="px-2 py-1 text-xs text-ink-500">
+                        No boards
+                      </li>
+                    )}
+                  </ul>
+
+                  {deskBoards.length > 0 && (
+                    <>
+                      <SidebarSectionTitle className="mt-3">
+                        Service desk
+                      </SidebarSectionTitle>
+                      <ul className="space-y-0.5">
+                        {deskBoards.map((b) => (
+                          <li key={b.id}>
+                            <DeskBoardLink
+                              board={b}
+                              isActive={b.id === boardId}
+                              pathname={pathname ?? ""}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -301,6 +341,64 @@ function BoardLink({
             icon={<IconEpic size={14} />}
           >
             Epics
+          </BoardSubLink>
+          <BoardSubLink
+            href={`${base}/settings`}
+            active={pathname === `${base}/settings`}
+            icon={<IconSettings size={14} />}
+          >
+            Settings
+          </BoardSubLink>
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function DeskBoardLink({
+  board,
+  isActive,
+  pathname,
+}: {
+  board: Board;
+  isActive: boolean;
+  pathname: string;
+}) {
+  const base = `/boards/${board.id}`;
+  return (
+    <div>
+      <Link
+        href={base}
+        className={`group flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition ${
+          isActive
+            ? "bg-brand-50 font-semibold text-brand-700"
+            : "text-ink-700 hover:bg-ink-50"
+        }`}
+      >
+        <span
+          className={`flex h-5 w-5 shrink-0 items-center justify-center ${
+            isActive ? "text-brand-600" : "text-ink-500 group-hover:text-ink-700"
+          }`}
+        >
+          <IconBoard size={16} />
+        </span>
+        <span className="min-w-0 flex-1 truncate">{board.name}</span>
+      </Link>
+      {isActive && (
+        <ul className="my-1 space-y-0.5 border-l border-ink-200 pl-3 ml-[18px]">
+          <BoardSubLink
+            href={base}
+            active={pathname === base}
+            icon={<IconBoard size={14} />}
+          >
+            Board
+          </BoardSubLink>
+          <BoardSubLink
+            href={`${base}/templates`}
+            active={pathname === `${base}/templates`}
+            icon={<IconTag size={14} />}
+          >
+            Templates
           </BoardSubLink>
           <BoardSubLink
             href={`${base}/settings`}

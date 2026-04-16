@@ -2,7 +2,18 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { api, BoardTree, Label, Member, Priority, Task, User } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  BoardTree,
+  DeskMessage,
+  Label,
+  Member,
+  Priority,
+  RequestSubmission,
+  Task,
+  User,
+} from "@/lib/api";
 import { Drawer } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Input";
@@ -97,6 +108,21 @@ export function TaskDrawer({
   const events = useQuery({
     queryKey: ["events", task.id],
     queryFn: () => api<any[]>(`/tasks/${task.id}/events`),
+  });
+
+  // Service desk submission — resolves to null for tasks that weren't
+  // created via an intake form, so we can conditionally render the panel.
+  const submission = useQuery({
+    queryKey: ["submission", task.id],
+    queryFn: async () => {
+      try {
+        return await api<RequestSubmission>(`/tasks/${task.id}/submission`);
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
+      }
+    },
+    retry: false,
   });
 
   const save = useMutation({
@@ -610,6 +636,48 @@ export function TaskDrawer({
           </form>
         </section>
 
+        {/* Service desk submission (only present for desk-created tasks) */}
+        {submission.data && (
+          <section className="border-t border-ink-200 pt-4">
+            <h3 className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-500">
+              Request details
+            </h3>
+            <div className="rounded-md border border-ink-200 bg-ink-50 p-3 text-xs">
+              <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1">
+                <dt className="font-semibold text-ink-600">From</dt>
+                <dd className="font-mono text-ink-800">
+                  {submission.data.submitter_email}
+                  {submission.data.submitter_name
+                    ? ` (${submission.data.submitter_name})`
+                    : ""}
+                </dd>
+                <dt className="font-semibold text-ink-600">Submitted</dt>
+                <dd className="text-ink-800">
+                  {new Date(submission.data.created_at).toLocaleString()}
+                </dd>
+              </dl>
+              {Object.keys(submission.data.values).length > 0 && (
+                <dl className="mt-3 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 border-t border-ink-200 pt-2">
+                  {Object.entries(submission.data.values).map(([k, v]) => (
+                    <div key={k} className="contents">
+                      <dt className="font-semibold text-ink-600">{k}</dt>
+                      <dd className="whitespace-pre-wrap break-words text-ink-800">
+                        {v}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Portal thread — submitter-visible conversation, separate from
+            team-only comments. Only rendered for desk-sourced tasks. */}
+        {submission.data && (
+          <PortalThread taskId={task.id} />
+        )}
+
         {/* Attachments */}
         <div className="border-t border-ink-200 pt-4">
           <Attachments taskId={task.id} teamId={teamId} canEdit={canComment} />
@@ -673,4 +741,95 @@ function formatEvent(kind: string): string {
     .replace(/^[a-z]+[._]/, "")
     .replace(/[._]/g, " ")
     .replace(/^./, (c) => c.toUpperCase());
+}
+
+function PortalThread({ taskId }: { taskId: string }) {
+  const qc = useQueryClient();
+  const [body, setBody] = useState("");
+  const messages = useQuery({
+    queryKey: ["desk-messages", taskId],
+    queryFn: () => api<DeskMessage[]>(`/tasks/${taskId}/desk-messages`),
+  });
+  const send = useMutation({
+    mutationFn: () =>
+      api<DeskMessage>(`/tasks/${taskId}/desk-messages`, {
+        method: "POST",
+        body: JSON.stringify({ body: body.trim() }),
+      }),
+    onSuccess: () => {
+      setBody("");
+      qc.invalidateQueries({ queryKey: ["desk-messages", taskId] });
+    },
+    onError: (e: Error) => alert(e.message),
+  });
+
+  const list = messages.data ?? [];
+
+  return (
+    <section className="border-t border-ink-200 pt-4">
+      <h3 className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-500">
+        Portal thread
+      </h3>
+      <p className="mb-2 text-xs text-ink-500">
+        Visible to the submitter on their tracking page. Use this for
+        updates that should reach them — internal notes go in Comments
+        below.
+      </p>
+      {list.length === 0 ? (
+        <p className="rounded-md border border-dashed border-ink-200 p-3 text-center text-xs italic text-ink-500">
+          No portal messages yet.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {list.map((m) => (
+            <li
+              key={m.id}
+              className={
+                m.from_submitter
+                  ? "mr-6 rounded-md border border-brand-200 bg-brand-50 p-3 text-sm"
+                  : "ml-6 rounded-md border border-ink-200 bg-white p-3 text-sm"
+              }
+            >
+              <div className="flex items-center justify-between gap-2 text-[11px] text-ink-500">
+                <span className="font-semibold text-ink-700">
+                  {m.from_submitter
+                    ? "Submitter"
+                    : m.author_name || "Team"}
+                </span>
+                <span>{new Date(m.created_at).toLocaleString()}</span>
+              </div>
+              <div className="mt-1 whitespace-pre-wrap break-words text-ink-800">
+                {m.body}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="mt-3 space-y-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!body.trim() || send.isPending) return;
+          send.mutate();
+        }}
+      >
+        <Textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={3}
+          placeholder="Reply to the submitter…"
+        />
+        <div className="flex justify-end">
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            disabled={!body.trim() || send.isPending}
+          >
+            {send.isPending ? "Sending…" : "Send reply"}
+          </Button>
+        </div>
+      </form>
+    </section>
+  );
 }

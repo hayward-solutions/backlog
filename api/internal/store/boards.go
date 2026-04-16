@@ -12,16 +12,41 @@ import (
 
 func (s *Store) CreateBoard(ctx context.Context, b domain.Board) error {
 	_, err := s.Pool.Exec(ctx,
-		`INSERT INTO boards (id, team_id, name, key, description) VALUES ($1,$2,$3,$4,$5)`,
-		b.ID, b.TeamID, b.Name, b.Key, b.Description)
+		`INSERT INTO boards (id, team_id, name, key, description, type, visibility, public_slug)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		b.ID, b.TeamID, b.Name, b.Key, b.Description, string(b.Type), string(b.Visibility), b.PublicSlug)
 	return err
 }
 
+func scanBoard(row pgx.Row, b *domain.Board) error {
+	var typ, vis string
+	err := row.Scan(&b.ID, &b.TeamID, &b.Name, &b.Key, &b.Description, &typ, &vis,
+		&b.PublicSlug, &b.IntakeColumnID, &b.ArchivedAt, &b.CreatedAt)
+	if err != nil {
+		return err
+	}
+	b.Type = domain.BoardType(typ)
+	b.Visibility = domain.BoardVisibility(vis)
+	return nil
+}
+
+const boardColumns = `id, team_id, name, key, description, type, visibility, public_slug, intake_column_id, archived_at, created_at`
+
 func (s *Store) GetBoard(ctx context.Context, id uuid.UUID) (domain.Board, error) {
 	var b domain.Board
-	err := s.Pool.QueryRow(ctx,
-		`SELECT id, team_id, name, key, description, archived_at, created_at FROM boards WHERE id = $1`, id).
-		Scan(&b.ID, &b.TeamID, &b.Name, &b.Key, &b.Description, &b.ArchivedAt, &b.CreatedAt)
+	err := scanBoard(s.Pool.QueryRow(ctx, `SELECT `+boardColumns+` FROM boards WHERE id = $1`, id), &b)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return b, ErrNotFound
+	}
+	return b, err
+}
+
+// GetBoardByPublicSlug returns the board and its team for a given URL slug.
+// Used by the unauthenticated desk endpoints; matching is case-insensitive.
+func (s *Store) GetBoardByPublicSlug(ctx context.Context, slug string) (domain.Board, error) {
+	var b domain.Board
+	err := scanBoard(s.Pool.QueryRow(ctx,
+		`SELECT `+boardColumns+` FROM boards WHERE lower(public_slug) = lower($1)`, slug), &b)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return b, ErrNotFound
 	}
@@ -30,8 +55,7 @@ func (s *Store) GetBoard(ctx context.Context, id uuid.UUID) (domain.Board, error
 
 func (s *Store) ListBoards(ctx context.Context, teamID uuid.UUID) ([]domain.Board, error) {
 	rows, err := s.Pool.Query(ctx,
-		`SELECT id, team_id, name, key, description, archived_at, created_at
-		 FROM boards WHERE team_id = $1 ORDER BY created_at`, teamID)
+		`SELECT `+boardColumns+` FROM boards WHERE team_id = $1 ORDER BY created_at`, teamID)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +63,7 @@ func (s *Store) ListBoards(ctx context.Context, teamID uuid.UUID) ([]domain.Boar
 	var out []domain.Board
 	for rows.Next() {
 		var b domain.Board
-		if err := rows.Scan(&b.ID, &b.TeamID, &b.Name, &b.Key, &b.Description, &b.ArchivedAt, &b.CreatedAt); err != nil {
+		if err := scanBoard(rows, &b); err != nil {
 			return nil, err
 		}
 		out = append(out, b)
@@ -100,14 +124,59 @@ func normaliseBoardKey(s string) string {
 	return string(out)
 }
 
-func (s *Store) UpdateBoard(ctx context.Context, id uuid.UUID, name, description string, archived bool) error {
-	if archived {
-		_, err := s.Pool.Exec(ctx,
-			`UPDATE boards SET name=$2, description=$3, archived_at=now() WHERE id=$1`, id, name, description)
-		return err
+// BoardUpdate carries optional patch fields. Nil pointers are skipped so
+// callers only have to set the keys they want to change. Slug gets special
+// handling: ClearSlug=true sets it to NULL (closes a public desk).
+type BoardUpdate struct {
+	Name           *string
+	Description    *string
+	Archived       *bool
+	Visibility     *domain.BoardVisibility
+	PublicSlug     *string
+	ClearSlug      bool
+	IntakeColumnID *uuid.UUID
+	ClearIntake    bool
+}
+
+func (s *Store) UpdateBoard(ctx context.Context, id uuid.UUID, u BoardUpdate) error {
+	q := `UPDATE boards SET `
+	args := []any{id}
+	sets := []string{}
+	add := func(col string, v any) {
+		args = append(args, v)
+		sets = append(sets, col+" = $"+itoa(len(args)))
 	}
-	_, err := s.Pool.Exec(ctx,
-		`UPDATE boards SET name=$2, description=$3, archived_at=NULL WHERE id=$1`, id, name, description)
+	if u.Name != nil {
+		add("name", *u.Name)
+	}
+	if u.Description != nil {
+		add("description", *u.Description)
+	}
+	if u.Archived != nil {
+		if *u.Archived {
+			sets = append(sets, "archived_at = now()")
+		} else {
+			sets = append(sets, "archived_at = NULL")
+		}
+	}
+	if u.Visibility != nil {
+		add("visibility", string(*u.Visibility))
+	}
+	if u.ClearSlug {
+		sets = append(sets, "public_slug = NULL")
+	} else if u.PublicSlug != nil {
+		add("public_slug", *u.PublicSlug)
+	}
+	if u.ClearIntake {
+		sets = append(sets, "intake_column_id = NULL")
+	} else if u.IntakeColumnID != nil {
+		add("intake_column_id", *u.IntakeColumnID)
+	}
+	if len(sets) == 0 {
+		return nil
+	}
+	q += joinComma(sets) + ` WHERE id = $1`
+	_, err := s.Pool.Exec(ctx, q, args...)
 	return err
 }
 

@@ -21,8 +21,8 @@ func (s *Store) CreateTeam(ctx context.Context, t domain.Team) error {
 func (s *Store) GetTeam(ctx context.Context, id uuid.UUID) (domain.Team, error) {
 	var t domain.Team
 	err := s.Pool.QueryRow(ctx,
-		`SELECT id, name, slug, created_at FROM teams WHERE id = $1`, id).
-		Scan(&t.ID, &t.Name, &t.Slug, &t.CreatedAt)
+		`SELECT id, name, slug, service_desk_enabled, created_at FROM teams WHERE id = $1`, id).
+		Scan(&t.ID, &t.Name, &t.Slug, &t.ServiceDeskEnabled, &t.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -30,7 +30,8 @@ func (s *Store) GetTeam(ctx context.Context, id uuid.UUID) (domain.Team, error) 
 }
 
 func (s *Store) ListAllTeams(ctx context.Context) ([]domain.Team, error) {
-	rows, err := s.Pool.Query(ctx, `SELECT id, name, slug, created_at FROM teams ORDER BY created_at`)
+	rows, err := s.Pool.Query(ctx,
+		`SELECT id, name, slug, service_desk_enabled, created_at FROM teams ORDER BY created_at`)
 	if err != nil {
 		return nil, err
 	}
@@ -38,9 +39,76 @@ func (s *Store) ListAllTeams(ctx context.Context) ([]domain.Team, error) {
 	return scanTeams(rows)
 }
 
+// ListPublicServiceDeskTeams returns every team that (a) has the service
+// desk feature enabled and (b) has at least one non-archived board whose
+// visibility is in the supplied set. This is the backing query for the
+// public /service-desk landing page. Callers pass {"public"} for anon
+// visitors and {"public","internal"} for authenticated ones.
+func (s *Store) ListPublicServiceDeskTeams(ctx context.Context, visibilities []string) ([]domain.Team, error) {
+	if len(visibilities) == 0 {
+		return []domain.Team{}, nil
+	}
+	rows, err := s.Pool.Query(ctx,
+		`SELECT DISTINCT t.id, t.name, t.slug, t.service_desk_enabled, t.created_at
+		 FROM teams t
+		 JOIN boards b ON b.team_id = t.id
+		 WHERE t.service_desk_enabled = true
+		   AND b.type = 'service_desk'
+		   AND b.archived_at IS NULL
+		   AND b.visibility = ANY($1)
+		 ORDER BY t.name`, visibilities)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanTeams(rows)
+}
+
+func (s *Store) GetTeamBySlug(ctx context.Context, slug string) (domain.Team, error) {
+	var t domain.Team
+	err := s.Pool.QueryRow(ctx,
+		`SELECT id, name, slug, service_desk_enabled, created_at
+		 FROM teams WHERE lower(slug) = lower($1)`, slug).
+		Scan(&t.ID, &t.Name, &t.Slug, &t.ServiceDeskEnabled, &t.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return t, ErrNotFound
+	}
+	return t, err
+}
+
+// ListPublicDesksForTeam returns the subset of a team's service-desk boards
+// the caller is allowed to discover. Archived boards and any board whose
+// visibility isn't in the allowed set are excluded. Templates are not
+// hydrated — the intake form itself still renders from /public/desks/{slug}.
+func (s *Store) ListPublicDesksForTeam(ctx context.Context, teamID uuid.UUID, visibilities []string) ([]domain.Board, error) {
+	if len(visibilities) == 0 {
+		return []domain.Board{}, nil
+	}
+	rows, err := s.Pool.Query(ctx,
+		`SELECT `+boardColumns+` FROM boards
+		 WHERE team_id = $1
+		   AND type = 'service_desk'
+		   AND archived_at IS NULL
+		   AND visibility = ANY($2)
+		 ORDER BY name`, teamID, visibilities)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.Board
+	for rows.Next() {
+		var b domain.Board
+		if err := scanBoard(rows, &b); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) ListTeamsForUser(ctx context.Context, userID uuid.UUID) ([]domain.Team, error) {
 	rows, err := s.Pool.Query(ctx,
-		`SELECT t.id, t.name, t.slug, t.created_at
+		`SELECT t.id, t.name, t.slug, t.service_desk_enabled, t.created_at
 		 FROM teams t JOIN team_memberships m ON m.team_id = t.id
 		 WHERE m.user_id = $1 ORDER BY t.created_at`, userID)
 	if err != nil {
@@ -54,7 +122,7 @@ func scanTeams(rows pgx.Rows) ([]domain.Team, error) {
 	var out []domain.Team
 	for rows.Next() {
 		var t domain.Team
-		if err := rows.Scan(&t.ID, &t.Name, &t.Slug, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.Name, &t.Slug, &t.ServiceDeskEnabled, &t.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -62,8 +130,33 @@ func scanTeams(rows pgx.Rows) ([]domain.Team, error) {
 	return out, rows.Err()
 }
 
-func (s *Store) UpdateTeam(ctx context.Context, id uuid.UUID, name string) error {
-	_, err := s.Pool.Exec(ctx, `UPDATE teams SET name = $2 WHERE id = $1`, id, name)
+// TeamUpdate carries optional patch fields. Nil means "leave alone" — this
+// keeps PATCH semantics close to the wire contract without needing a second
+// read.
+type TeamUpdate struct {
+	Name               *string
+	ServiceDeskEnabled *bool
+}
+
+func (s *Store) UpdateTeam(ctx context.Context, id uuid.UUID, u TeamUpdate) error {
+	q := `UPDATE teams SET `
+	args := []any{id}
+	sets := []string{}
+	add := func(col string, v any) {
+		args = append(args, v)
+		sets = append(sets, col+" = $"+itoa(len(args)))
+	}
+	if u.Name != nil {
+		add("name", *u.Name)
+	}
+	if u.ServiceDeskEnabled != nil {
+		add("service_desk_enabled", *u.ServiceDeskEnabled)
+	}
+	if len(sets) == 0 {
+		return nil
+	}
+	q += joinComma(sets) + ` WHERE id = $1`
+	_, err := s.Pool.Exec(ctx, q, args...)
 	return err
 }
 

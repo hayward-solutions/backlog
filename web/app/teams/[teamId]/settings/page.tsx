@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { AppShell } from "@/components/AppShell";
 import { Breadcrumbs } from "@/components/TopBar";
-import { api, Label, Member, Role, Team } from "@/lib/api";
+import { api, Label, Member, Role, Team, User } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge, LabelPill } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -30,6 +30,27 @@ export default function TeamSettingsPage() {
   const labels = useQuery({
     queryKey: ["labels", teamId],
     queryFn: () => api<Label[]>(`/teams/${teamId}/labels`),
+  });
+  const me = useQuery({
+    queryKey: ["me"],
+    queryFn: () => api<User>(`/auth/me`),
+  });
+
+  // Resolve the caller's role for this team — system admins get owner
+  // implicitly, matching the backend's ResolveTeamRole behaviour.
+  const myRole: Role | undefined = me.data?.is_system_admin
+    ? "owner"
+    : members.data?.find((m) => m.user.id === me.data?.id)?.role;
+  const isOwner = myRole === "owner";
+
+  const updateTeam = useMutation({
+    mutationFn: (patch: { service_desk_enabled?: boolean }) =>
+      api<Team>(`/teams/${teamId}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["team", teamId] }),
+    onError: (e: Error) => alert(e.message),
   });
 
   const changeRole = useMutation({
@@ -319,6 +340,42 @@ export default function TeamSettingsPage() {
                 <IconPlus size={14} /> Add label
               </Button>
             </form>
+          </section>
+
+          {/* Service desk */}
+          <section className="surface p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-sm font-semibold text-ink-900">
+                  Service desk
+                </h2>
+                <p className="mt-0.5 text-xs text-ink-500">
+                  Turn this on to let owners create service-desk boards with
+                  customer-facing intake forms. Disabling hides existing desk
+                  boards and stops public forms from accepting new submissions
+                  — the data is preserved and reappears when re-enabled.
+                </p>
+              </div>
+              <label className="flex shrink-0 items-center gap-2 text-sm text-ink-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 cursor-pointer rounded border-ink-300 text-accent-600 focus:ring-accent-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  checked={!!team.data?.service_desk_enabled}
+                  disabled={!isOwner || updateTeam.isPending}
+                  onChange={(e) =>
+                    updateTeam.mutate({ service_desk_enabled: e.target.checked })
+                  }
+                />
+                <span>
+                  {team.data?.service_desk_enabled ? "Enabled" : "Disabled"}
+                </span>
+              </label>
+            </div>
+            {!isOwner && (
+              <p className="mt-3 text-xs italic text-ink-500">
+                Only team owners can change this setting.
+              </p>
+            )}
           </section>
         </div>
       </div>

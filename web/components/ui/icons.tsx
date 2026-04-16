@@ -87,6 +87,14 @@ export const IconList = (p: IconProps) => (
   </svg>
 );
 
+export const IconLifeBuoy = (p: IconProps) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="4" />
+    <path d="m4.93 4.93 4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M14.83 9.17l3.53-3.53M4.93 19.07l4.24-4.24" />
+  </svg>
+);
+
 export const IconEpic = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="m13 2-10 13h7l-1 7 10-13h-7l1-7Z" />

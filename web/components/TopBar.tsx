@@ -6,7 +6,14 @@ import { useQuery } from "@tanstack/react-query";
 import { api, User } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
 import { Menu, MenuDivider, MenuItem } from "@/components/ui/Menu";
-import { IconChevronDown, IconLogout, IconMenu, IconSettings, IconUsers } from "@/components/ui/icons";
+import {
+  IconChevronDown,
+  IconLifeBuoy,
+  IconLogout,
+  IconMenu,
+  IconSettings,
+  IconUsers,
+} from "@/components/ui/icons";
 
 export function TopBar({
   children,
@@ -46,6 +53,17 @@ export function TopBar({
       <div className="min-w-0 flex-1 truncate">{children}</div>
 
       {me && (
+        <Link
+          href="/service-desk"
+          title="Open the service-desk directory"
+          className="flex h-9 items-center gap-1.5 rounded-md px-2 text-sm text-ink-700 hover:bg-ink-50 hover:text-ink-900"
+        >
+          <IconLifeBuoy size={16} className="text-ink-500" />
+          <span className="hidden sm:inline">Service desk</span>
+        </Link>
+      )}
+
+      {me && (
         <Menu
           align="right"
           width={220}
@@ -78,6 +96,15 @@ export function TopBar({
               >
                 <IconSettings size={14} className="text-ink-500" />
                 My account
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  close();
+                  router.push("/service-desk/mine");
+                }}
+              >
+                <IconLifeBuoy size={14} className="text-ink-500" />
+                My requests
               </MenuItem>
               {me.is_system_admin && (
                 <>

@@ -54,6 +54,10 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 			r.Patch("/auth/me", authH.UpdateMe)
 			r.With(mw.AuthLimiter()).Post("/auth/change-password", authH.ChangePassword)
 			r.With(mw.AuthLimiter()).Post("/invites/{token}/accept", teamH.AcceptInvite)
+			// Cross-team "my tasks" collation. Access checks happen inside
+			// the handler because the rows span every team the caller
+			// belongs to — there's no single team to resolve up-front.
+			r.Get("/me/tasks", taskH.MyTasks)
 		})
 
 		// Admin

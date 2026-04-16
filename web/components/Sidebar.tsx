@@ -97,6 +97,13 @@ export function Sidebar({
         >
           All teams
         </SidebarLink>
+        <SidebarLink
+          href="/my-tasks"
+          icon={<IconList size={16} />}
+          active={pathname === "/my-tasks"}
+        >
+          My tasks
+        </SidebarLink>
 
         {activeTeam && (
           <div className="mt-4">

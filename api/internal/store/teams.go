@@ -106,6 +106,30 @@ func (s *Store) ListPublicDesksForTeam(ctx context.Context, teamID uuid.UUID, vi
 	return out, rows.Err()
 }
 
+// GetTeamsByIDs returns teams matching the supplied ids. Access checks
+// are the caller's responsibility — this is used by the my-tasks aggregator
+// which has already filtered tasks to ones the user can see.
+func (s *Store) GetTeamsByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.Team, error) {
+	if len(ids) == 0 {
+		return []domain.Team{}, nil
+	}
+	rows, err := s.Pool.Query(ctx,
+		`SELECT id, name, slug, service_desk_enabled, created_at
+		 FROM teams WHERE id = ANY($1::uuid[])`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out, err := scanTeams(rows)
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []domain.Team{}
+	}
+	return out, nil
+}
+
 func (s *Store) ListTeamsForUser(ctx context.Context, userID uuid.UUID) ([]domain.Team, error) {
 	rows, err := s.Pool.Query(ctx,
 		`SELECT t.id, t.name, t.slug, t.service_desk_enabled, t.created_at

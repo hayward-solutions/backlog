@@ -87,6 +87,31 @@ func (s *Store) ListUsers(ctx context.Context) ([]domain.User, error) {
 	return out, rows.Err()
 }
 
+// GetUsersByIDs returns the users matching the supplied ids. Used where the
+// caller has a bag of foreign-key ids (e.g. assignees and reporters across a
+// multi-board view) and wants to resolve display names in one round-trip.
+func (s *Store) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.User, error) {
+	if len(ids) == 0 {
+		return []domain.User{}, nil
+	}
+	rows, err := s.Pool.Query(ctx,
+		`SELECT id, email, display_name, is_system_admin, disabled_at, created_at
+		 FROM users WHERE id = ANY($1::uuid[])`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []domain.User{}
+	for rows.Next() {
+		var u domain.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.DisplayName, &u.IsSystemAdmin, &u.DisabledAt, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) SetUserDisabled(ctx context.Context, id uuid.UUID, disabled bool) error {
 	var ts *time.Time
 	if disabled {

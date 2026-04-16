@@ -9,6 +9,7 @@ import { Menu, MenuDivider, MenuItem } from "@/components/ui/Menu";
 import {
   IconChevronDown,
   IconLifeBuoy,
+  IconList,
   IconLogout,
   IconMenu,
   IconSettings,
@@ -96,6 +97,15 @@ export function TopBar({
               >
                 <IconSettings size={14} className="text-ink-500" />
                 My account
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  close();
+                  router.push("/my-tasks");
+                }}
+              >
+                <IconList size={14} className="text-ink-500" />
+                My tasks
               </MenuItem>
               <MenuItem
                 onClick={() => {

@@ -316,6 +316,25 @@ export interface DeskTrackingInfo {
   messages: DeskMessage[];
 }
 
+// --- My tasks ---
+
+/** Response shape for GET /me/tasks. Tasks span multiple boards and
+ * teams, so the endpoint bundles every referenced entity alongside the
+ * task list. The client turns the arrays into id→object maps and renders
+ * without any further round-trips. */
+export interface MyTasksResponse {
+  tasks: Task[];
+  boards: Board[];
+  columns: Column[];
+  teams: Team[];
+  users: User[];
+  labels: Label[];
+}
+
+/** Which bucket(s) to include in the my-tasks response. The caller picks
+ * any combination; omitting all three falls back to "assigned". */
+export type MyTasksInclude = "assigned" | "unassigned" | "reported";
+
 /**
  * Unauthenticated fetch for the public desk endpoints. Kept separate
  * from `api()` because we deliberately avoid sending the session cookie

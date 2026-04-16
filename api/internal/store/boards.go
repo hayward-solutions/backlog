@@ -53,6 +53,30 @@ func (s *Store) GetBoardByPublicSlug(ctx context.Context, slug string) (domain.B
 	return b, err
 }
 
+// GetBoardsByIDs returns boards matching the supplied ids in one query.
+// Unknown ids are silently skipped — callers that need "all or nothing"
+// semantics should check the response length themselves.
+func (s *Store) GetBoardsByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.Board, error) {
+	if len(ids) == 0 {
+		return []domain.Board{}, nil
+	}
+	rows, err := s.Pool.Query(ctx,
+		`SELECT `+boardColumns+` FROM boards WHERE id = ANY($1::uuid[])`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []domain.Board{}
+	for rows.Next() {
+		var b domain.Board
+		if err := scanBoard(rows, &b); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) ListBoards(ctx context.Context, teamID uuid.UUID) ([]domain.Board, error) {
 	rows, err := s.Pool.Query(ctx,
 		`SELECT `+boardColumns+` FROM boards WHERE team_id = $1 ORDER BY created_at`, teamID)
@@ -232,6 +256,33 @@ func (s *Store) ListColumns(ctx context.Context, boardID uuid.UUID) ([]domain.Co
 	return out, rows.Err()
 }
 
+// GetColumnsByIDs returns the columns with the given ids. Used by the
+// my-tasks aggregation endpoint — each task's column is needed to render
+// status, and batching avoids a per-task round-trip.
+func (s *Store) GetColumnsByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.Column, error) {
+	if len(ids) == 0 {
+		return []domain.Column{}, nil
+	}
+	rows, err := s.Pool.Query(ctx,
+		`SELECT id, board_id, name, position, type, wip_limit
+		 FROM columns WHERE id = ANY($1::uuid[])`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []domain.Column{}
+	for rows.Next() {
+		var c domain.Column
+		var t string
+		if err := rows.Scan(&c.ID, &c.BoardID, &c.Name, &c.Position, &t, &c.WIPLimit); err != nil {
+			return nil, err
+		}
+		c.Type = domain.ColumnType(t)
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) UpdateColumn(ctx context.Context, c domain.Column) error {
 	_, err := s.Pool.Exec(ctx,
 		`UPDATE columns SET name=$2, position=$3, type=$4, wip_limit=$5 WHERE id=$1`,
@@ -279,6 +330,29 @@ func (s *Store) ListLabels(ctx context.Context, teamID uuid.UUID) ([]domain.Labe
 	}
 	defer rows.Close()
 	var out []domain.Label
+	for rows.Next() {
+		var l domain.Label
+		if err := rows.Scan(&l.ID, &l.TeamID, &l.Name, &l.Color); err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+// GetLabelsByIDs returns labels matching the supplied ids. Used by the
+// my-tasks aggregator to resolve labels across teams in one shot.
+func (s *Store) GetLabelsByIDs(ctx context.Context, ids []uuid.UUID) ([]domain.Label, error) {
+	if len(ids) == 0 {
+		return []domain.Label{}, nil
+	}
+	rows, err := s.Pool.Query(ctx,
+		`SELECT id, team_id, name, color FROM labels WHERE id = ANY($1::uuid[])`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []domain.Label{}
 	for rows.Next() {
 		var l domain.Label
 		if err := rows.Scan(&l.ID, &l.TeamID, &l.Name, &l.Color); err != nil {

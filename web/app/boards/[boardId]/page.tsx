@@ -11,7 +11,7 @@ import {
 } from "@dnd-kit/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { AppShell } from "@/components/AppShell";
 import { Breadcrumbs } from "@/components/TopBar";
@@ -33,7 +33,6 @@ export default function BoardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const qc = useQueryClient();
-  const [selected, setSelected] = useState<Task | null>(null);
   const [toolbar, setToolbar] = useState<ToolbarState>(defaultToolbarState);
   const [newTaskCol, setNewTaskCol] = useState<string | null>(null);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
@@ -57,17 +56,12 @@ export default function BoardPage() {
   useBoardStream(boardId, onStream);
 
   // Deep-link: open the drawer for a task/epic referenced by ?task=<id>.
+  // The URL is the single source of truth for which task the drawer is open to,
+  // so opening/closing only needs to update the query string.
   const taskParam = searchParams.get("task");
-  useEffect(() => {
-    if (!taskParam || !query.data) return;
-    if (selected?.id === taskParam) return;
-    const t = query.data.tasks.find((x) => x.id === taskParam);
-    if (t) setSelected(t);
-  }, [taskParam, query.data, selected?.id]);
 
   const openTask = useCallback(
     (t: Task) => {
-      setSelected(t);
       const sp = new URLSearchParams(searchParams.toString());
       sp.set("task", t.id);
       router.replace(`?${sp.toString()}`, { scroll: false });
@@ -76,7 +70,6 @@ export default function BoardPage() {
   );
 
   const closeTask = useCallback(() => {
-    setSelected(null);
     const sp = new URLSearchParams(searchParams.toString());
     sp.delete("task");
     const qs = sp.toString();
@@ -145,6 +138,9 @@ export default function BoardPage() {
     );
   }
   const tree = query.data!;
+  const selected = taskParam
+    ? tree.tasks.find((t) => t.id === taskParam) ?? null
+    : null;
   const visibleTasks = filterTasks(tree.tasks, toolbar);
   const tasksByCol = (colId: string) =>
     visibleTasks
@@ -268,7 +264,7 @@ export default function BoardPage() {
       )}
       {selected && (
         <TaskDrawer
-          task={tree.tasks.find((t) => t.id === selected.id) ?? selected}
+          task={selected}
           tree={tree}
           teamId={tree.board.team_id}
           onClose={closeTask}

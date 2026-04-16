@@ -1,18 +1,30 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/haywardsolutions/backlog/api/internal/auth"
 	"github.com/haywardsolutions/backlog/api/internal/domain"
 	mw "github.com/haywardsolutions/backlog/api/internal/http/middleware"
 	"github.com/haywardsolutions/backlog/api/internal/store"
 )
+
+// pgForeignKeyViolation is the SQLSTATE for a foreign_key_violation. We
+// surface this distinct error so "delete user who still has tasks/comments"
+// becomes a 409 with a useful hint rather than an opaque 500.
+const pgForeignKeyViolation = "23503"
+
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgForeignKeyViolation
+}
 
 type AdminHandler struct {
 	Store *store.Store
@@ -146,6 +158,71 @@ func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 			body.Disabled != nil, body.Password != nil)
 	}
 	writeJSON(w, http.StatusOK, u)
+}
+
+// DeleteUser hard-deletes a user. Sessions and team memberships cascade; any
+// remaining reference (tasks they reported, comments they wrote, attachments
+// they uploaded, etc.) produces a FK violation, which we surface as 409 with
+// a "disable instead" hint. Rejects self-delete and the last active system
+// admin to prevent instance lockout.
+func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	id, err := urlUUID(r, "userID")
+	if err != nil {
+		httpErr(w, http.StatusBadRequest, "bad id")
+		return
+	}
+	actor, _ := mw.UserFrom(r.Context())
+	if actor.ID == id {
+		httpErr(w, http.StatusConflict, "cannot delete your own account")
+		return
+	}
+	target, err := h.Store.GetUser(r.Context(), id)
+	if err != nil {
+		httpErr(w, http.StatusNotFound, "not found")
+		return
+	}
+	if target.IsSystemAdmin && target.DisabledAt == nil {
+		n, err := h.Store.CountActiveSystemAdmins(r.Context())
+		if err != nil {
+			internalErr(w, r, err, "failed to check admin count")
+			return
+		}
+		if n <= 1 {
+			httpErr(w, http.StatusConflict, "cannot remove the last active system administrator")
+			return
+		}
+	}
+	if err := h.Store.DeleteUser(r.Context(), id); err != nil {
+		if isForeignKeyViolation(err) {
+			httpErr(w, http.StatusConflict,
+				"user has tasks, comments, or other content on the server; disable them instead")
+			return
+		}
+		internalErr(w, r, err, "failed to delete user")
+		return
+	}
+	log.Printf("audit admin.delete_user actor=%s target=%s", actor.ID, id)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ListUserMemberships returns every team the target user belongs to. Used by
+// the admin "manage teams" drawer so admins can review and edit team
+// assignments without visiting each team's settings page.
+func (h *AdminHandler) ListUserMemberships(w http.ResponseWriter, r *http.Request) {
+	id, err := urlUUID(r, "userID")
+	if err != nil {
+		httpErr(w, http.StatusBadRequest, "bad id")
+		return
+	}
+	ms, err := h.Store.ListUserMemberships(r.Context(), id)
+	if err != nil {
+		internalErr(w, r, err, "failed to list memberships")
+		return
+	}
+	if ms == nil {
+		ms = []store.UserMembership{}
+	}
+	writeJSON(w, http.StatusOK, ms)
 }
 
 func (h *AdminHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {

@@ -63,6 +63,8 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 			r.Get("/admin/users", admin.ListUsers)
 			r.Post("/admin/users", admin.CreateUser)
 			r.Patch("/admin/users/{userID}", admin.UpdateUser)
+			r.Delete("/admin/users/{userID}", admin.DeleteUser)
+			r.Get("/admin/users/{userID}/memberships", admin.ListUserMemberships)
 			r.Post("/admin/teams", admin.CreateTeam)
 		})
 
@@ -86,6 +88,8 @@ func NewRouter(s *store.Store, hub *events.Hub, oidcCfg *auth.OIDCConfig, public
 			r.With(mw.RequirePerm(domain.PermDeleteTeam)).Patch("/", teamH.Update)
 			r.With(mw.RequirePerm(domain.PermDeleteTeam)).Delete("/", teamH.Delete)
 
+			r.With(mw.RequirePerm(domain.PermManageMembers)).Post("/members", teamH.AddMember)
+			r.With(mw.RequirePerm(domain.PermManageMembers)).Get("/candidates", teamH.SearchCandidates)
 			r.With(mw.RequirePerm(domain.PermManageMembers)).Patch("/members/{userID}", teamH.UpdateMember)
 			r.With(mw.RequirePerm(domain.PermManageMembers)).Delete("/members/{userID}", teamH.RemoveMember)
 			r.With(mw.RequirePerm(domain.PermManageMembers)).Post("/invites", teamH.CreateInvite)

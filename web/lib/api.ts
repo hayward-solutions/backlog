@@ -62,6 +62,15 @@ export interface Member {
   role: Role;
 }
 
+/** A user's membership projected across the teams they belong to. Used by
+ * the admin "manage teams" drawer on the users page. */
+export interface UserMembership {
+  team_id: string;
+  team_name: string;
+  team_slug: string;
+  role: Role;
+}
+
 export interface Board {
   id: string;
   team_id: string;

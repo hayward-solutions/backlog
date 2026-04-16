@@ -125,6 +125,90 @@ func (s *Store) SetUserPassword(ctx context.Context, id uuid.UUID, hash string) 
 	return err
 }
 
+// DeleteUser hard-deletes the user row. Sessions and team memberships cascade,
+// but other references (tasks.reporter_id, comments.author_id, etc.) are
+// declared NOT NULL without ON DELETE behaviour, so Postgres will return a
+// 23503 foreign_key_violation when the user still has content. The handler
+// turns that into a 409 so the admin can fall back to disabling.
+func (s *Store) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	_, err := s.Pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
+	return err
+}
+
+// SearchUsers returns active users whose display name or email contains q
+// (case-insensitive), excluding any user in exclude. Used by the team
+// "add existing member" picker. Capped at a small limit to keep responses
+// compact and discourage mass user enumeration.
+func (s *Store) SearchUsers(ctx context.Context, q string, exclude []uuid.UUID, limit int) ([]domain.User, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 25
+	}
+	if exclude == nil {
+		// pgx serializes a nil slice as NULL, which poisons the
+		// `NOT (id = ANY(NULL))` check (NULL -> everything filtered out).
+		// Guarantee a non-nil empty slice so the filter is a no-op.
+		exclude = []uuid.UUID{}
+	}
+	q = strings.TrimSpace(q)
+	rows, err := s.Pool.Query(ctx,
+		`SELECT id, email, display_name, is_system_admin, disabled_at, created_at
+		 FROM users
+		 WHERE disabled_at IS NULL
+		   AND ($1 = '' OR display_name ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%')
+		   AND NOT (id = ANY($2::uuid[]))
+		 ORDER BY display_name
+		 LIMIT $3`,
+		q, exclude, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.User
+	for rows.Next() {
+		var u domain.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.DisplayName, &u.IsSystemAdmin, &u.DisabledAt, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// ListUserMemberships returns every team this user belongs to, with their
+// role. Used by the admin "manage teams" drawer so admins can see and edit
+// a user's team assignments in one place.
+func (s *Store) ListUserMemberships(ctx context.Context, userID uuid.UUID) ([]UserMembership, error) {
+	rows, err := s.Pool.Query(ctx,
+		`SELECT t.id, t.name, t.slug, m.role
+		 FROM team_memberships m JOIN teams t ON t.id = m.team_id
+		 WHERE m.user_id = $1 ORDER BY t.name`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []UserMembership
+	for rows.Next() {
+		var um UserMembership
+		var r string
+		if err := rows.Scan(&um.TeamID, &um.TeamName, &um.TeamSlug, &r); err != nil {
+			return nil, err
+		}
+		um.Role = domain.Role(r)
+		out = append(out, um)
+	}
+	return out, rows.Err()
+}
+
+// UserMembership is a flat projection of a user's team row for the admin
+// UI. Kept out of the domain package because it's specific to one admin
+// view; everywhere else we already return domain.Member or domain.Team.
+type UserMembership struct {
+	TeamID   uuid.UUID   `json:"team_id"`
+	TeamName string      `json:"team_name"`
+	TeamSlug string      `json:"team_slug"`
+	Role     domain.Role `json:"role"`
+}
+
 // GetUserByOIDCSubject returns the user mapped to an OIDC subject, if any.
 func (s *Store) GetUserByOIDCSubject(ctx context.Context, subject string) (domain.User, error) {
 	var u domain.User

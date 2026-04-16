@@ -103,6 +103,66 @@ func (h *TeamHandler) ListMembers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, m)
 }
 
+// AddMember directly adds an existing server user to the team with the
+// given role. This is the "add someone already on this server" flow —
+// bypasses the invite link machinery entirely. Owners (and system admins,
+// who inherit owner) can call it.
+func (h *TeamHandler) AddMember(w http.ResponseWriter, r *http.Request) {
+	teamID, _ := urlUUID(r, "teamID")
+	var body struct {
+		UserID uuid.UUID   `json:"user_id"`
+		Role   domain.Role `json:"role"`
+	}
+	if err := readJSON(r, &body); err != nil || body.UserID == uuid.Nil || !body.Role.Valid() {
+		httpErr(w, http.StatusBadRequest, "bad body")
+		return
+	}
+	// Confirm the target user exists and is active. A disabled user can't
+	// sign in, so silently adding them would be confusing — fail fast with
+	// a clear message instead.
+	u, err := h.Store.GetUser(r.Context(), body.UserID)
+	if err != nil {
+		httpErr(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if u.DisabledAt != nil {
+		httpErr(w, http.StatusConflict, "user is disabled")
+		return
+	}
+	if err := h.Store.AddMember(r.Context(), teamID, body.UserID, body.Role); err != nil {
+		internalErr(w, r, err, "failed to add member")
+		return
+	}
+	writeJSON(w, http.StatusCreated, domain.Member{User: u, Role: body.Role})
+}
+
+// SearchCandidates returns users not already on the team that match q. Used
+// by the "add existing user" picker on the team settings page. Requires
+// PermManageMembers (same gate as invite creation) so random viewers can't
+// enumerate the user directory through team routes.
+func (h *TeamHandler) SearchCandidates(w http.ResponseWriter, r *http.Request) {
+	teamID, _ := urlUUID(r, "teamID")
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	existing, err := h.Store.ListMembers(r.Context(), teamID)
+	if err != nil {
+		internalErr(w, r, err, "failed to list members")
+		return
+	}
+	exclude := make([]uuid.UUID, 0, len(existing))
+	for _, m := range existing {
+		exclude = append(exclude, m.User.ID)
+	}
+	users, err := h.Store.SearchUsers(r.Context(), q, exclude, 25)
+	if err != nil {
+		internalErr(w, r, err, "failed to search users")
+		return
+	}
+	if users == nil {
+		users = []domain.User{}
+	}
+	writeJSON(w, http.StatusOK, users)
+}
+
 func (h *TeamHandler) UpdateMember(w http.ResponseWriter, r *http.Request) {
 	teamID, _ := urlUUID(r, "teamID")
 	userID, err := urlUUID(r, "userID")

@@ -11,7 +11,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge, LabelPill } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Input";
-import { IconCheck, IconPlus, IconTrash, IconUsers } from "@/components/ui/icons";
+import { IconCheck, IconPlus, IconSearch, IconTrash, IconUsers } from "@/components/ui/icons";
 
 const ROLES: Role[] = ["owner", "editor", "member", "viewer"];
 
@@ -67,6 +67,33 @@ export default function TeamSettingsPage() {
     mutationFn: (userId: string) =>
       api(`/teams/${teamId}/members/${userId}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["members", teamId] }),
+    onError: (e: Error) => alert(e.message),
+  });
+
+  // "Add existing user" flow — for people who already have an account on
+  // this server, skip the invite-link dance and just attach them to the
+  // team directly. The invite flow below still exists for people who don't
+  // have an account yet. isOwner already accounts for system admins (they
+  // get owner implicitly), so we gate on that alone.
+  const [addSearch, setAddSearch] = useState("");
+  const [addRole, setAddRole] = useState<Role>("member");
+  const candidates = useQuery({
+    queryKey: ["candidates", teamId, addSearch],
+    queryFn: () =>
+      api<User[]>(`/teams/${teamId}/candidates?q=${encodeURIComponent(addSearch)}`),
+    enabled: isOwner,
+  });
+
+  const addMember = useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: Role }) =>
+      api(`/teams/${teamId}/members`, {
+        method: "POST",
+        body: JSON.stringify({ user_id: userId, role }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["members", teamId] });
+      qc.invalidateQueries({ queryKey: ["candidates", teamId] });
+    },
     onError: (e: Error) => alert(e.message),
   });
 
@@ -214,11 +241,91 @@ export default function TeamSettingsPage() {
             </ul>
           </section>
 
+          {/* Add existing user — direct add, no invite link. Only visible
+              to people who can manage members (owners + system admins). */}
+          {isOwner && (
+            <section className="surface p-5">
+              <h2 className="text-sm font-semibold text-ink-900">Add existing user</h2>
+              <p className="mt-0.5 text-xs text-ink-500">
+                Search people who already have an account on this server and
+                add them directly — no invite link needed.
+              </p>
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                <Field label="Search" className="min-w-[220px] flex-1">
+                  <div className="relative">
+                    <IconSearch
+                      size={14}
+                      className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400"
+                    />
+                    <Input
+                      value={addSearch}
+                      onChange={(e) => setAddSearch(e.target.value)}
+                      placeholder="Search by name or email…"
+                      className="pl-8"
+                    />
+                  </div>
+                </Field>
+                <Field label="Role">
+                  <Select
+                    value={addRole}
+                    onChange={(e) => setAddRole(e.target.value as Role)}
+                    className="w-32"
+                  >
+                    {ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+              <ul className="mt-3 divide-y divide-ink-100 overflow-hidden rounded-md border border-ink-200">
+                {(candidates.data ?? []).map((u) => {
+                  const name = u.display_name || u.email;
+                  return (
+                    <li
+                      key={u.id}
+                      className="flex items-center gap-3 px-3 py-2"
+                    >
+                      <Avatar name={name} seed={u.id} size={28} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-ink-900">
+                          {name}
+                        </div>
+                        <div className="truncate text-xs text-ink-500">
+                          {u.email}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={addMember.isPending}
+                        onClick={() =>
+                          addMember.mutate({ userId: u.id, role: addRole })
+                        }
+                      >
+                        <IconPlus size={12} /> Add as {addRole}
+                      </Button>
+                    </li>
+                  );
+                })}
+                {candidates.isSuccess && (candidates.data ?? []).length === 0 && (
+                  <li className="px-3 py-4 text-center text-sm text-ink-500">
+                    {addSearch
+                      ? "No matching users."
+                      : "No users available — everyone's already on the team."}
+                  </li>
+                )}
+              </ul>
+            </section>
+          )}
+
           {/* Invite */}
           <section className="surface p-5">
             <h2 className="text-sm font-semibold text-ink-900">Invite someone</h2>
             <p className="mt-0.5 text-xs text-ink-500">
-              Generates a one-time link that adds them to this team.
+              Generates a one-time link for someone who doesn't have a server
+              account yet.
             </p>
             <form
               className="mt-3 flex flex-wrap items-end gap-2"

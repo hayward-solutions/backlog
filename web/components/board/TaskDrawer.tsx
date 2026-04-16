@@ -9,7 +9,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/Input";
 import { LabelPill } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { PriorityIcon, priorityLabel } from "@/components/ui/PriorityIcon";
-import { IconEpic, IconTrash } from "@/components/ui/icons";
+import { IconCheck, IconEpic, IconLink, IconTrash } from "@/components/ui/icons";
 import { Markdown } from "@/components/ui/Markdown";
 import { Comments } from "./Comments";
 import { Attachments } from "./Attachments";
@@ -44,6 +44,31 @@ export function TaskDrawer({
   const [labelIds, setLabelIds] = useState<string[]>(task.label_ids);
   const [epicId, setEpicId] = useState(task.epic_id ?? "");
   const [editDesc, setEditDesc] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function copyLink() {
+    const url = `${window.location.origin}/boards/${task.board_id}?task=${task.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Fallback for non-secure contexts or denied clipboard permission.
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      } finally {
+        document.body.removeChild(ta);
+      }
+    }
+  }
 
   const me = useQuery({
     queryKey: ["me"],
@@ -140,6 +165,27 @@ export function TaskDrawer({
     },
     onError: (e: Error) => alert(e.message),
   });
+
+  const moveColumn = useMutation({
+    mutationFn: ({ columnId, position }: { columnId: string; position: number }) =>
+      api<Task>(`/tasks/${task.id}/move`, {
+        method: "POST",
+        body: JSON.stringify({ column_id: columnId, position }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["board", task.board_id] });
+      qc.invalidateQueries({ queryKey: ["events", task.id] });
+    },
+    onError: (e: Error) => alert(e.message),
+  });
+
+  function commitColumn(next: string) {
+    if (!next || next === task.column_id) return;
+    const maxPos = tree.tasks
+      .filter((t) => t.column_id === next)
+      .reduce((m, t) => Math.max(m, t.position), 0);
+    moveColumn.mutate({ columnId: next, position: maxPos + 1 });
+  }
 
   function commitTitle(next: string) {
     const trimmed = next.trim();
@@ -253,15 +299,25 @@ export function TaskDrawer({
       onClose={onClose}
       width={560}
       actions={
-        <button
-          title="Delete task"
-          className="rounded-xs p-1 text-ink-500 hover:bg-danger-50 hover:text-danger-600"
-          onClick={() => {
-            if (confirm("Delete this task?")) del.mutate();
-          }}
-        >
-          <IconTrash size={16} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            title={copied ? "Copied!" : "Copy link"}
+            aria-label={copied ? "Link copied" : "Copy link"}
+            className="rounded-xs p-1 text-ink-500 hover:bg-ink-100 hover:text-ink-800"
+            onClick={copyLink}
+          >
+            {copied ? <IconCheck size={16} /> : <IconLink size={16} />}
+          </button>
+          <button
+            title={task.is_epic ? "Delete epic" : "Delete task"}
+            className="rounded-xs p-1 text-ink-500 hover:bg-danger-50 hover:text-danger-600"
+            onClick={() => {
+              if (confirm(task.is_epic ? "Delete this epic?" : "Delete this task?")) del.mutate();
+            }}
+          >
+            <IconTrash size={16} />
+          </button>
+        </div>
       }
     >
       <div className="space-y-5 px-4 py-4 sm:px-5">
@@ -339,9 +395,9 @@ export function TaskDrawer({
           </div>
           <div className="divide-y divide-ink-100 text-sm">
             <PropertyRow label="Status">
-              <span className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <span
-                  className={`inline-block h-2 w-2 rounded-full ${
+                  className={`inline-block h-2 w-2 shrink-0 rounded-full ${
                     col?.type === "done"
                       ? "bg-success-500"
                       : col?.type === "in_progress"
@@ -349,8 +405,19 @@ export function TaskDrawer({
                       : "bg-ink-400"
                   }`}
                 />
-                <span className="text-ink-800">{col?.name ?? "—"}</span>
-              </span>
+                <Select
+                  value={task.column_id}
+                  onChange={(e) => commitColumn(e.target.value)}
+                  className="w-full sm:w-56"
+                  disabled={moveColumn.isPending}
+                >
+                  {tree.columns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </PropertyRow>
             <PropertyRow label="Priority">
               <div className="flex items-center gap-2">

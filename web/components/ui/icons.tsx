@@ -120,6 +120,20 @@ export const IconTrash = (p: IconProps) => (
   </svg>
 );
 
+export const IconPencil = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+  </svg>
+);
+
+export const IconLink = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M10 14a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5" />
+    <path d="M14 10a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5" />
+  </svg>
+);
+
 export const IconArrowLeft = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="m12 19-7-7 7-7M19 12H5" />

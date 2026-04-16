@@ -10,8 +10,8 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AppShell } from "@/components/AppShell";
 import { Breadcrumbs } from "@/components/TopBar";
@@ -30,6 +30,8 @@ import { useBoardStream } from "@/lib/sse";
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Task | null>(null);
   const [toolbar, setToolbar] = useState<ToolbarState>(defaultToolbarState);
@@ -53,6 +55,33 @@ export default function BoardPage() {
     qc.invalidateQueries({ queryKey: ["board", boardId] });
   }, [qc, boardId]);
   useBoardStream(boardId, onStream);
+
+  // Deep-link: open the drawer for a task/epic referenced by ?task=<id>.
+  const taskParam = searchParams.get("task");
+  useEffect(() => {
+    if (!taskParam || !query.data) return;
+    if (selected?.id === taskParam) return;
+    const t = query.data.tasks.find((x) => x.id === taskParam);
+    if (t) setSelected(t);
+  }, [taskParam, query.data, selected?.id]);
+
+  const openTask = useCallback(
+    (t: Task) => {
+      setSelected(t);
+      const sp = new URLSearchParams(searchParams.toString());
+      sp.set("task", t.id);
+      router.replace(`?${sp.toString()}`, { scroll: false });
+    },
+    [router, searchParams]
+  );
+
+  const closeTask = useCallback(() => {
+    setSelected(null);
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete("task");
+    const qs = sp.toString();
+    router.replace(qs ? `?${qs}` : "?", { scroll: false });
+  }, [router, searchParams]);
 
   const moveTask = useMutation({
     mutationFn: ({
@@ -220,7 +249,7 @@ export default function BoardPage() {
                   labels={tree.labels}
                   members={members.data ?? []}
                   onAdd={() => addTaskShortcut(c.id)}
-                  onCardClick={(t) => setSelected(t)}
+                  onCardClick={openTask}
                 />
               ))}
           </div>
@@ -242,7 +271,7 @@ export default function BoardPage() {
           task={tree.tasks.find((t) => t.id === selected.id) ?? selected}
           tree={tree}
           teamId={tree.board.team_id}
-          onClose={() => setSelected(null)}
+          onClose={closeTask}
         />
       )}
     </AppShell>

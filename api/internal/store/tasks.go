@@ -129,6 +129,96 @@ func (s *Store) ListTasksByBoard(ctx context.Context, boardID uuid.UUID) ([]doma
 	return out, lrows.Err()
 }
 
+// ListTasksForUser collates tasks across every team the user can see. It's
+// the backing query for the "My tasks" view. At least one of the include
+// flags must be true — otherwise we return an empty slice without querying.
+//
+// Access rules:
+//   - system admins can see tasks on any non-archived board
+//   - everyone else is scoped to boards whose team they're a member of
+//
+// Tasks are considered in three (overlapping) buckets and the caller picks
+// any combination:
+//   - includeAssigned: task.assignee_id = userID
+//   - includeReported: task.reporter_id = userID
+//   - includeUnassigned: task.assignee_id IS NULL (still gated by team
+//     membership so you don't see unassigned tasks from teams you can't open)
+func (s *Store) ListTasksForUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	includeAssigned, includeReported, includeUnassigned, isSystemAdmin bool,
+) ([]domain.Task, error) {
+	if !includeAssigned && !includeReported && !includeUnassigned {
+		return []domain.Task{}, nil
+	}
+	rows, err := s.Pool.Query(ctx,
+		`SELECT t.id, t.board_id, t.column_id, t.epic_id, t.is_epic, t.key, t.title, t.description,
+			t.priority, t.assignee_id, t.reporter_id, t.estimate_hours, t.start_at, t.due_at,
+			t.position, t.created_at, t.completed_at
+		 FROM tasks t
+		 JOIN boards b ON b.id = t.board_id
+		 WHERE b.archived_at IS NULL
+		   AND (
+		     $5::boolean = true
+		     OR EXISTS (
+		       SELECT 1 FROM team_memberships m
+		       WHERE m.team_id = b.team_id AND m.user_id = $1
+		     )
+		   )
+		   AND (
+		     ($2::boolean AND t.assignee_id = $1)
+		     OR ($3::boolean AND t.reporter_id = $1)
+		     OR ($4::boolean AND t.assignee_id IS NULL)
+		   )
+		 ORDER BY t.created_at DESC`,
+		userID, includeAssigned, includeReported, includeUnassigned, isSystemAdmin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.Task
+	ids := []uuid.UUID{}
+	for rows.Next() {
+		var t domain.Task
+		var pr string
+		if err := rows.Scan(&t.ID, &t.BoardID, &t.ColumnID, &t.EpicID, &t.IsEpic, &t.Key, &t.Title, &t.Description, &pr,
+			&t.AssigneeID, &t.ReporterID, &t.EstimateHours, &t.StartAt, &t.DueAt, &t.Position, &t.CreatedAt, &t.CompletedAt); err != nil {
+			return nil, err
+		}
+		t.Priority = domain.Priority(pr)
+		t.LabelIDs = []uuid.UUID{}
+		out = append(out, t)
+		ids = append(ids, t.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return []domain.Task{}, nil
+	}
+	// Hydrate labels in a single query keyed by the tasks we just returned.
+	lrows, err := s.Pool.Query(ctx,
+		`SELECT task_id, label_id FROM task_labels WHERE task_id = ANY($1::uuid[])`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer lrows.Close()
+	idx := map[uuid.UUID]int{}
+	for i, t := range out {
+		idx[t.ID] = i
+	}
+	for lrows.Next() {
+		var tid, lid uuid.UUID
+		if err := lrows.Scan(&tid, &lid); err != nil {
+			return nil, err
+		}
+		if i, ok := idx[tid]; ok {
+			out[i].LabelIDs = append(out[i].LabelIDs, lid)
+		}
+	}
+	return out, lrows.Err()
+}
+
 type TaskUpdate struct {
 	Title         *string
 	Description   *string

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -264,6 +265,134 @@ func (h *TaskHandler) writeEvent(r *http.Request, taskID uuid.UUID, kind string,
 		Payload:   payload,
 		CreatedAt: time.Now().UTC(),
 	})
+}
+
+// MyTasks returns a collation of tasks the signed-in user cares about across
+// every team they can see. Unlike board-scoped endpoints, the rows here span
+// multiple boards and teams, so the response bundles the referenced boards,
+// columns, teams, users and labels alongside the tasks — the client can then
+// render a flat list without having to fan-out a request per task.
+//
+// Filters are passed via the `include` query parameter as a comma-separated
+// list. Missing value defaults to "assigned" so the bare URL still gives the
+// user something useful.
+//
+//   /me/tasks?include=assigned           (default)
+//   /me/tasks?include=assigned,unassigned
+//   /me/tasks?include=assigned,reported
+//   /me/tasks?include=assigned,unassigned,reported
+func (h *TaskHandler) MyTasks(w http.ResponseWriter, r *http.Request) {
+	u, _ := mw.UserFrom(r.Context())
+
+	includeRaw := strings.TrimSpace(r.URL.Query().Get("include"))
+	if includeRaw == "" {
+		includeRaw = "assigned"
+	}
+	var assigned, reported, unassigned bool
+	for _, part := range strings.Split(includeRaw, ",") {
+		switch strings.TrimSpace(strings.ToLower(part)) {
+		case "assigned":
+			assigned = true
+		case "reported":
+			reported = true
+		case "unassigned":
+			unassigned = true
+		}
+	}
+
+	tasks, err := h.Store.ListTasksForUser(r.Context(), u.ID, assigned, reported, unassigned, u.IsSystemAdmin)
+	if err != nil {
+		internalErr(w, r, err, "failed to list tasks")
+		return
+	}
+
+	// Gather the distinct ids referenced by the tasks. We batch-fetch each
+	// entity once so the client can build id->object maps without issuing
+	// any further requests per-board/per-team.
+	boardIDs := newUUIDSet()
+	columnIDs := newUUIDSet()
+	userIDs := newUUIDSet()
+	labelIDs := newUUIDSet()
+	for _, t := range tasks {
+		boardIDs.add(t.BoardID)
+		columnIDs.add(t.ColumnID)
+		userIDs.add(t.ReporterID)
+		if t.AssigneeID != nil {
+			userIDs.add(*t.AssigneeID)
+		}
+		for _, l := range t.LabelIDs {
+			labelIDs.add(l)
+		}
+	}
+
+	boards, err := h.Store.GetBoardsByIDs(r.Context(), boardIDs.slice())
+	if err != nil {
+		internalErr(w, r, err, "failed to load boards")
+		return
+	}
+	teamIDs := newUUIDSet()
+	for _, b := range boards {
+		teamIDs.add(b.TeamID)
+	}
+	columns, err := h.Store.GetColumnsByIDs(r.Context(), columnIDs.slice())
+	if err != nil {
+		internalErr(w, r, err, "failed to load columns")
+		return
+	}
+	teams, err := h.Store.GetTeamsByIDs(r.Context(), teamIDs.slice())
+	if err != nil {
+		internalErr(w, r, err, "failed to load teams")
+		return
+	}
+	users, err := h.Store.GetUsersByIDs(r.Context(), userIDs.slice())
+	if err != nil {
+		internalErr(w, r, err, "failed to load users")
+		return
+	}
+	labels, err := h.Store.GetLabelsByIDs(r.Context(), labelIDs.slice())
+	if err != nil {
+		internalErr(w, r, err, "failed to load labels")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"tasks":   tasks,
+		"boards":  boards,
+		"columns": columns,
+		"teams":   teams,
+		"users":   users,
+		"labels":  labels,
+	})
+}
+
+// uuidSet preserves insertion order and is dedup-safe. The my-tasks
+// handler builds four of these while walking the task list, so the tiny
+// helper is worth the dozen lines it saves at each callsite.
+type uuidSet struct {
+	seen  map[uuid.UUID]struct{}
+	order []uuid.UUID
+}
+
+func newUUIDSet() *uuidSet {
+	return &uuidSet{seen: map[uuid.UUID]struct{}{}}
+}
+
+func (s *uuidSet) add(id uuid.UUID) {
+	if id == uuid.Nil {
+		return
+	}
+	if _, ok := s.seen[id]; ok {
+		return
+	}
+	s.seen[id] = struct{}{}
+	s.order = append(s.order, id)
+}
+
+func (s *uuidSet) slice() []uuid.UUID {
+	if s.order == nil {
+		return []uuid.UUID{}
+	}
+	return s.order
 }
 
 func ResolveTeamIDFromTask(s *store.Store) func(r *http.Request) (uuid.UUID, error) {

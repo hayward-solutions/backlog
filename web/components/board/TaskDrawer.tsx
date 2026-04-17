@@ -12,6 +12,7 @@ import {
   Priority,
   RequestSubmission,
   Task,
+  TaskEvent,
   User,
 } from "@/lib/api";
 import { Drawer } from "@/components/ui/Modal";
@@ -107,7 +108,7 @@ export function TaskDrawer({
   });
   const events = useQuery({
     queryKey: ["events", task.id],
-    queryFn: () => api<any[]>(`/tasks/${task.id}/events`),
+    queryFn: () => api<TaskEvent[]>(`/tasks/${task.id}/events`),
   });
 
   // Service desk submission — resolves to null for tasks that weren't
@@ -698,17 +699,9 @@ export function TaskDrawer({
           <h3 className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-500">
             Activity
           </h3>
-          <ul className="space-y-2">
+          <ul className="space-y-2.5">
             {(events.data ?? []).map((e) => (
-              <li key={e.id} className="flex items-start gap-2 text-xs">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-300" />
-                <div>
-                  <span className="font-medium text-ink-800">{formatEvent(e.kind)}</span>
-                  <span className="ml-2 text-ink-500">
-                    {new Date(e.created_at).toLocaleString()}
-                  </span>
-                </div>
-              </li>
+              <ActivityItem key={e.id} event={e} tree={tree} members={members.data ?? []} />
             ))}
             {(events.data ?? []).length === 0 && (
               <li className="text-xs text-ink-500">No activity yet.</li>
@@ -735,12 +728,237 @@ function PropertyRow({
   );
 }
 
-function formatEvent(kind: string): string {
-  // Turn "task.updated" / "task_moved" / "label.added" into "Task updated" / "Label added"
-  return kind
-    .replace(/^[a-z]+[._]/, "")
-    .replace(/[._]/g, " ")
-    .replace(/^./, (c) => c.toUpperCase());
+function ActivityItem({
+  event,
+  tree,
+  members,
+}: {
+  event: TaskEvent;
+  tree: BoardTree;
+  members: Member[];
+}) {
+  const actor = members.find((m) => m.user.id === event.actor_id)?.user;
+  const actorName = actor?.display_name || actor?.email || "Someone";
+  const description = describeEvent(event, tree, members);
+  return (
+    <li className="flex items-start gap-2 text-xs">
+      <Avatar name={actorName} size={20} className="mt-0.5" />
+      <div className="min-w-0 flex-1">
+        <div className="text-ink-700">
+          <span className="font-medium text-ink-800">{actorName}</span>{" "}
+          {description}
+        </div>
+        <div className="text-[11px] text-ink-500">
+          {new Date(event.created_at).toLocaleString()}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function describeEvent(
+  event: TaskEvent,
+  tree: BoardTree,
+  members: Member[]
+): React.ReactNode {
+  const p = event.payload ?? {};
+  const userName = (id: unknown) => {
+    if (typeof id !== "string" || !id) return "someone";
+    const u = members.find((m) => m.user.id === id)?.user;
+    return u?.display_name || u?.email || "a user";
+  };
+  const columnName = (id: unknown) => {
+    if (typeof id !== "string" || !id) return "a column";
+    return tree.columns.find((c) => c.id === id)?.name ?? "a column";
+  };
+  const labelNames = (ids: unknown): string[] => {
+    if (!Array.isArray(ids)) return [];
+    return ids
+      .filter((x): x is string => typeof x === "string")
+      .map((id) => tree.labels.find((l) => l.id === id)?.name ?? "(deleted)");
+  };
+  const epicTitle = (id: unknown) => {
+    if (typeof id !== "string" || !id) return null;
+    return tree.tasks.find((t) => t.id === id)?.title ?? "an epic";
+  };
+
+  switch (event.kind) {
+    case "created":
+      return (
+        <>
+          created this task in <Strong>{columnName(p.column_id)}</Strong>
+        </>
+      );
+    case "title_changed":
+      return (
+        <>
+          changed the title from <Strong>{String(p.from ?? "")}</Strong> to{" "}
+          <Strong>{String(p.to ?? "")}</Strong>
+        </>
+      );
+    case "description_changed":
+      return <>updated the description</>;
+    case "priority_changed":
+      return (
+        <>
+          changed priority from{" "}
+          <Strong>{priorityLabel((p.from as Priority) ?? "med")}</Strong> to{" "}
+          <Strong>{priorityLabel((p.to as Priority) ?? "med")}</Strong>
+        </>
+      );
+    case "assigned":
+      return p.from ? (
+        <>
+          reassigned this from <Strong>{userName(p.from)}</Strong> to{" "}
+          <Strong>{userName(p.to)}</Strong>
+        </>
+      ) : (
+        <>
+          assigned this to <Strong>{userName(p.to ?? p.user_id)}</Strong>
+        </>
+      );
+    case "unassigned":
+      return p.from ? (
+        <>
+          unassigned <Strong>{userName(p.from)}</Strong>
+        </>
+      ) : (
+        <>removed the assignee</>
+      );
+    case "estimate_changed":
+      if (p.to == null) return <>cleared the estimate</>;
+      return p.from != null ? (
+        <>
+          changed the estimate from <Strong>{formatHours(p.from)}</Strong> to{" "}
+          <Strong>{formatHours(p.to)}</Strong>
+        </>
+      ) : (
+        <>
+          set the estimate to <Strong>{formatHours(p.to)}</Strong>
+        </>
+      );
+    case "start_changed":
+      if (p.to == null) return <>cleared the start date</>;
+      return p.from ? (
+        <>
+          changed the start date from <Strong>{formatDate(p.from)}</Strong> to{" "}
+          <Strong>{formatDate(p.to)}</Strong>
+        </>
+      ) : (
+        <>
+          set the start date to <Strong>{formatDate(p.to)}</Strong>
+        </>
+      );
+    case "due_changed":
+      if (p.to == null) return <>cleared the due date</>;
+      return p.from ? (
+        <>
+          changed the due date from <Strong>{formatDate(p.from)}</Strong> to{" "}
+          <Strong>{formatDate(p.to)}</Strong>
+        </>
+      ) : (
+        <>
+          set the due date to <Strong>{formatDate(p.to)}</Strong>
+        </>
+      );
+    case "epic_changed": {
+      const to = epicTitle(p.to);
+      const from = epicTitle(p.from);
+      if (!to && from) return <>removed this from epic <Strong>{from}</Strong></>;
+      if (to && !from) return <>linked this to epic <Strong>{to}</Strong></>;
+      if (to && from)
+        return (
+          <>
+            moved this from epic <Strong>{from}</Strong> to <Strong>{to}</Strong>
+          </>
+        );
+      return <>updated the epic link</>;
+    }
+    case "reporter_changed":
+      return (
+        <>
+          changed the reporter from <Strong>{userName(p.from)}</Strong> to{" "}
+          <Strong>{userName(p.to)}</Strong>
+        </>
+      );
+    case "labels_changed": {
+      const added = labelNames(p.added);
+      const removed = labelNames(p.removed);
+      const parts: React.ReactNode[] = [];
+      if (added.length) {
+        parts.push(
+          <span key="added">
+            added {added.length > 1 ? "labels" : "label"}{" "}
+            <Strong>{added.join(", ")}</Strong>
+          </span>
+        );
+      }
+      if (removed.length) {
+        parts.push(
+          <span key="removed">
+            removed {removed.length > 1 ? "labels" : "label"}{" "}
+            <Strong>{removed.join(", ")}</Strong>
+          </span>
+        );
+      }
+      return parts.length === 0 ? (
+        <>updated labels</>
+      ) : (
+        parts.reduce((acc, el, i) => (
+          <>
+            {acc}
+            {i > 0 ? " and " : ""}
+            {el}
+          </>
+        ))
+      );
+    }
+    case "moved_column":
+      return (
+        <>
+          moved this from <Strong>{columnName(p.from)}</Strong> to{" "}
+          <Strong>{columnName(p.to)}</Strong>
+        </>
+      );
+    case "completed":
+      return <>marked this as done</>;
+    case "reopened":
+      return <>reopened this task</>;
+    case "commented":
+      return <>added a comment</>;
+    case "comment_edited":
+      return <>edited a comment</>;
+    default:
+      return <>{prettifyKind(event.kind)}</>;
+  }
+}
+
+function Strong({ children }: { children: React.ReactNode }) {
+  return <span className="font-medium text-ink-900">{children}</span>;
+}
+
+function formatHours(v: unknown): string {
+  if (v == null) return "—";
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return String(v);
+  return `${n}h`;
+}
+
+function formatDate(v: unknown): string {
+  if (typeof v !== "string" || !v) return "—";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return v;
+  const hasTime = /\d{2}:\d{2}/.test(v);
+  return d.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    ...(hasTime ? { hour: "numeric", minute: "2-digit" } : {}),
+  });
+}
+
+function prettifyKind(kind: string): string {
+  return kind.replace(/[._]/g, " ");
 }
 
 function PortalThread({ taskId }: { taskId: string }) {

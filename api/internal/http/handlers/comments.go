@@ -118,6 +118,14 @@ func (h *CommentHandler) Update(w http.ResponseWriter, r *http.Request) {
 	for i := range c.Attachments {
 		decorateAttachment(r.Context(), &c.Attachments[i], h.Storage)
 	}
+	_ = h.Store.WriteEvent(r.Context(), domain.TaskEvent{
+		ID:        uuid.Must(uuid.NewV7()),
+		TaskID:    c.TaskID,
+		ActorID:   u.ID,
+		Kind:      "comment_edited",
+		Payload:   map[string]any{"comment_id": c.ID},
+		CreatedAt: time.Now().UTC(),
+	})
 	writeJSON(w, http.StatusOK, c)
 }
 

@@ -173,25 +173,66 @@ func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if body.Priority != nil && *body.Priority != before.Priority {
 		h.writeEvent(r, id, "priority_changed", map[string]any{"from": before.Priority, "to": *body.Priority})
 	}
-	if body.ClearAssignee {
-		h.writeEvent(r, id, "unassigned", map[string]any{})
-	} else if body.AssigneeID != nil {
-		h.writeEvent(r, id, "assigned", map[string]any{"user_id": *body.AssigneeID})
+	if body.ClearAssignee && before.AssigneeID != nil {
+		h.writeEvent(r, id, "unassigned", map[string]any{"from": *before.AssigneeID})
+	} else if body.AssigneeID != nil && (before.AssigneeID == nil || *before.AssigneeID != *body.AssigneeID) {
+		payload := map[string]any{"to": *body.AssigneeID}
+		if before.AssigneeID != nil {
+			payload["from"] = *before.AssigneeID
+		}
+		h.writeEvent(r, id, "assigned", payload)
 	}
-	if body.ClearEstimate || body.EstimateHours != nil {
-		h.writeEvent(r, id, "estimate_changed", map[string]any{"to": body.EstimateHours})
+	if body.ClearEstimate && before.EstimateHours != nil {
+		h.writeEvent(r, id, "estimate_changed", map[string]any{"from": *before.EstimateHours, "to": nil})
+	} else if body.EstimateHours != nil && (before.EstimateHours == nil || *before.EstimateHours != *body.EstimateHours) {
+		payload := map[string]any{"to": *body.EstimateHours}
+		if before.EstimateHours != nil {
+			payload["from"] = *before.EstimateHours
+		}
+		h.writeEvent(r, id, "estimate_changed", payload)
 	}
-	if body.ClearStart || body.StartAt != nil {
-		h.writeEvent(r, id, "start_changed", map[string]any{"to": body.StartAt})
+	if body.ClearStart && before.StartAt != nil {
+		h.writeEvent(r, id, "start_changed", map[string]any{"from": before.StartAt, "to": nil})
+	} else if body.StartAt != nil && (before.StartAt == nil || !before.StartAt.Equal(*body.StartAt)) {
+		payload := map[string]any{"to": *body.StartAt}
+		if before.StartAt != nil {
+			payload["from"] = *before.StartAt
+		}
+		h.writeEvent(r, id, "start_changed", payload)
 	}
-	if body.ClearDue || body.DueAt != nil {
-		h.writeEvent(r, id, "due_changed", map[string]any{"to": body.DueAt})
+	if body.ClearDue && before.DueAt != nil {
+		h.writeEvent(r, id, "due_changed", map[string]any{"from": before.DueAt, "to": nil})
+	} else if body.DueAt != nil && (before.DueAt == nil || !before.DueAt.Equal(*body.DueAt)) {
+		payload := map[string]any{"to": *body.DueAt}
+		if before.DueAt != nil {
+			payload["from"] = *before.DueAt
+		}
+		h.writeEvent(r, id, "due_changed", payload)
 	}
-	if body.ClearEpic || body.EpicID != nil {
-		h.writeEvent(r, id, "epic_changed", map[string]any{"to": body.EpicID})
+	if body.ClearEpic && before.EpicID != nil {
+		h.writeEvent(r, id, "epic_changed", map[string]any{"from": *before.EpicID, "to": nil})
+	} else if body.EpicID != nil && (before.EpicID == nil || *before.EpicID != *body.EpicID) {
+		payload := map[string]any{"to": *body.EpicID}
+		if before.EpicID != nil {
+			payload["from"] = *before.EpicID
+		}
+		h.writeEvent(r, id, "epic_changed", payload)
 	}
 	if body.ReporterID != nil && *body.ReporterID != before.ReporterID {
 		h.writeEvent(r, id, "reporter_changed", map[string]any{"from": before.ReporterID, "to": *body.ReporterID})
+	}
+	if body.LabelIDs != nil {
+		added, removed := diffLabelIDs(before.LabelIDs, *body.LabelIDs)
+		if len(added) > 0 || len(removed) > 0 {
+			payload := map[string]any{}
+			if len(added) > 0 {
+				payload["added"] = added
+			}
+			if len(removed) > 0 {
+				payload["removed"] = removed
+			}
+			h.writeEvent(r, id, "labels_changed", payload)
+		}
 	}
 
 	h.Hub.Publish(after.BoardID, events.Event{Kind: "task.updated", BoardID: after.BoardID.String(), Payload: after})
@@ -253,6 +294,28 @@ func (h *TaskHandler) Events(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, es)
+}
+
+func diffLabelIDs(before, after []uuid.UUID) (added, removed []uuid.UUID) {
+	has := func(xs []uuid.UUID, id uuid.UUID) bool {
+		for _, x := range xs {
+			if x == id {
+				return true
+			}
+		}
+		return false
+	}
+	for _, id := range after {
+		if !has(before, id) {
+			added = append(added, id)
+		}
+	}
+	for _, id := range before {
+		if !has(after, id) {
+			removed = append(removed, id)
+		}
+	}
+	return
 }
 
 func (h *TaskHandler) writeEvent(r *http.Request, taskID uuid.UUID, kind string, payload any) {

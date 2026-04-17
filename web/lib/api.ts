@@ -170,6 +170,15 @@ export interface Comment {
   attachments: Attachment[];
 }
 
+export interface TaskEvent {
+  id: string;
+  task_id: string;
+  actor_id: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
 /**
  * Upload a file as an attachment (multipart). Bypasses the JSON helper.
  */

@@ -70,7 +70,7 @@ export function Card({
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className="card-hover group cursor-grab rounded-md border border-ink-200 bg-white p-3 shadow-card active:cursor-grabbing"
+      className="card-hover group cursor-grab rounded-md border border-ink-200 bg-ink-0 p-3 shadow-card active:cursor-grabbing"
     >
       {/* Labels strip */}
       {taskLabels.length > 0 && (

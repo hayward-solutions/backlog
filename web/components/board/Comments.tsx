@@ -80,7 +80,7 @@ export function Comments({
         {(q.data ?? []).map((c) => (
           <li key={c.id} className="flex gap-2">
             <Avatar name={memberName(c.author_id)} seed={c.author_id} size={24} />
-            <div className="flex-1 rounded-md border border-ink-200 bg-white px-3 py-2">
+            <div className="flex-1 rounded-md border border-ink-200 bg-ink-0 px-3 py-2">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <div className="text-xs">
                   <span className="font-medium text-ink-800">

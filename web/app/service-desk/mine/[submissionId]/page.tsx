@@ -22,7 +22,7 @@ export default function MySubmissionTrackPage() {
   return (
     <div className="min-h-screen bg-ink-50">
       <div className="mx-auto max-w-2xl px-4 py-10 sm:py-14">
-        <div className="rounded-lg border border-ink-200 bg-white p-6 shadow-soft">
+        <div className="rounded-lg border border-ink-200 bg-ink-0 p-6 shadow-soft">
           <nav className="text-xs text-ink-500">
             <Link href="/service-desk/mine" className="hover:underline">
               ← All my requests

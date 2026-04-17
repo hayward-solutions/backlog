@@ -13,7 +13,7 @@ export default function Home() {
   }, [router]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 via-white to-purple-50">
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 via-ink-0 to-purple-50">
       <div className="flex flex-col items-center gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-card">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none">

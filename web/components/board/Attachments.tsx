@@ -61,7 +61,7 @@ export function Attachments({
         {(q.data ?? []).map((a) => (
           <li
             key={a.id}
-            className="flex items-center justify-between rounded-md border border-ink-200 bg-white px-2 py-1.5 text-sm"
+            className="flex items-center justify-between rounded-md border border-ink-200 bg-ink-0 px-2 py-1.5 text-sm"
           >
             <AttachmentLine att={a} />
             {canEdit && (

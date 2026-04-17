@@ -78,7 +78,7 @@ export default function AccountPage() {
         <Breadcrumbs items={[{ label: "Teams", href: "/teams" }, { label: "My account" }]} />
       }
     >
-      <div className="border-b border-ink-200 bg-white px-4 py-4 sm:px-6">
+      <div className="border-b border-ink-200 bg-ink-0 px-4 py-4 sm:px-6">
         <h1 className="text-[20px] font-semibold tracking-tight text-ink-900">My account</h1>
         <p className="text-sm text-ink-600">Manage your profile and password.</p>
       </div>

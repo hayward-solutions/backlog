@@ -78,7 +78,7 @@ export const BoardToolbar = forwardRef<
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-ink-200 bg-white px-3 py-2.5 sm:px-6">
+    <div className="flex flex-wrap items-center gap-2 border-b border-ink-200 bg-ink-0 px-3 py-2.5 sm:px-6">
       <div className="relative order-1 min-w-0 flex-1 sm:flex-initial">
         <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500">
           <IconSearch size={14} />
@@ -95,7 +95,7 @@ export const BoardToolbar = forwardRef<
       <button
         type="button"
         onClick={() => setFiltersOpen((v) => !v)}
-        className={`order-2 flex h-8 shrink-0 items-center gap-1 rounded-md border border-ink-200 bg-white px-2 text-xs font-medium text-ink-700 hover:bg-ink-50 sm:hidden ${
+        className={`order-2 flex h-8 shrink-0 items-center gap-1 rounded-md border border-ink-200 bg-ink-0 px-2 text-xs font-medium text-ink-700 hover:bg-ink-100 sm:hidden ${
           filtersOpen ? "bg-ink-100" : ""
         }`}
         aria-expanded={filtersOpen}

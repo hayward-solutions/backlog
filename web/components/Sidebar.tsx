@@ -53,12 +53,12 @@ export function Sidebar({
       <div
         onClick={onMobileClose}
         aria-hidden
-        className={`fixed inset-0 z-40 bg-ink-900/50 backdrop-blur-[1px] transition-opacity md:hidden ${
+        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px] transition-opacity md:hidden ${
           mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[84vw] max-w-[280px] flex-col border-r border-ink-200 bg-white shadow-drawer transition-transform duration-200 md:sticky md:top-0 md:z-auto md:w-60 md:max-w-none md:shrink-0 md:translate-x-0 md:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[84vw] max-w-[280px] flex-col border-r border-ink-200 bg-ink-0 shadow-drawer transition-transform duration-200 md:sticky md:top-0 md:z-auto md:w-60 md:max-w-none md:shrink-0 md:translate-x-0 md:shadow-none ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -273,7 +273,7 @@ function SidebarLink({
       } ${
         active
           ? "bg-brand-50 font-semibold text-brand-700"
-          : "text-ink-700 hover:bg-ink-50"
+          : "text-ink-700 hover:bg-ink-100"
       }`}
     >
       {icon && (
@@ -307,7 +307,7 @@ function BoardLink({
         className={`group flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition ${
           isActive
             ? "bg-brand-50 font-semibold text-brand-700"
-            : "text-ink-700 hover:bg-ink-50"
+            : "text-ink-700 hover:bg-ink-100"
         }`}
       >
         <span
@@ -379,7 +379,7 @@ function DeskBoardLink({
         className={`group flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition ${
           isActive
             ? "bg-brand-50 font-semibold text-brand-700"
-            : "text-ink-700 hover:bg-ink-50"
+            : "text-ink-700 hover:bg-ink-100"
         }`}
       >
         <span

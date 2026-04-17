@@ -45,7 +45,7 @@ export function Menu({
       {open && (
         <div
           style={{ width, [align]: 0 } as any}
-          className="absolute z-50 mt-1 overflow-hidden rounded-md border border-ink-200 bg-white py-1 shadow-overlay animate-scale-in"
+          className="absolute z-50 mt-1 overflow-hidden rounded-md border border-ink-200 bg-ink-0 py-1 shadow-overlay animate-scale-in"
         >
           {children(() => setOpen(false))}
         </div>
@@ -73,7 +73,7 @@ export function MenuItem({
       className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm disabled:opacity-50 ${
         tone === "danger"
           ? "text-danger-600 hover:bg-danger-50"
-          : "text-ink-800 hover:bg-ink-50"
+          : "text-ink-800 hover:bg-ink-100"
       }`}
     >
       {children}

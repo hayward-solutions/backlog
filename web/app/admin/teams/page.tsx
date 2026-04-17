@@ -65,7 +65,7 @@ export default function AdminTeamsPage() {
     <AppShell
       topSlot={<Breadcrumbs items={[{ label: "Admin" }, { label: "Teams" }]} />}
     >
-      <div className="border-b border-ink-200 bg-white px-4 py-4 sm:px-6">
+      <div className="border-b border-ink-200 bg-ink-0 px-4 py-4 sm:px-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-[20px] font-semibold tracking-tight text-ink-900">Teams</h1>
@@ -79,7 +79,7 @@ export default function AdminTeamsPage() {
         </div>
       </div>
 
-      <div className="border-b border-ink-200 bg-white px-4 py-3 sm:px-6">
+      <div className="border-b border-ink-200 bg-ink-0 px-4 py-3 sm:px-6">
         <div className="relative max-w-sm">
           <IconSearch
             size={14}
@@ -94,7 +94,7 @@ export default function AdminTeamsPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto bg-white">
+      <div className="flex-1 overflow-auto bg-ink-0">
         <table className="w-full min-w-[720px] border-separate border-spacing-0 text-sm">
           <thead className="sticky top-0 z-10 bg-ink-50 text-left text-[10.5px] font-semibold uppercase tracking-wider text-ink-600">
             <tr>

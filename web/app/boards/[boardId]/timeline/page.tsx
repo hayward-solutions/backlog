@@ -293,7 +293,7 @@ export default function BoardTimelinePage() {
         />
       }
     >
-      <div className="border-b border-ink-200 bg-white px-4 py-4 sm:px-6">
+      <div className="border-b border-ink-200 bg-ink-0 px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-[20px] font-semibold tracking-tight text-ink-900">
@@ -330,7 +330,7 @@ export default function BoardTimelinePage() {
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-auto bg-white"
+        className="flex-1 overflow-auto bg-ink-0"
         style={{ position: "relative" }}
       >
         <div
@@ -435,7 +435,7 @@ export default function BoardTimelinePage() {
                   <div
                     key={t.id}
                     className={`flex border-b border-ink-100 ${
-                      isChild ? "bg-ink-50/50" : "bg-white"
+                      isChild ? "bg-ink-50/50" : "bg-ink-0"
                     }`}
                     style={{ height: ROW_HEIGHT }}
                   >
@@ -610,7 +610,7 @@ function renderBar({
     return (
       <button
         onClick={onClick}
-        className="absolute top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-md border border-dashed border-ink-300 bg-white px-2 py-0.5 text-[10.5px] font-medium text-ink-500 hover:border-ink-400 hover:text-ink-700"
+        className="absolute top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-md border border-dashed border-ink-300 bg-ink-0 px-2 py-0.5 text-[10.5px] font-medium text-ink-500 hover:border-ink-400 hover:text-ink-700"
         style={{ left: anchor * DAY_WIDTH + 2 }}
         title={`${title} — not scheduled`}
       >

@@ -105,7 +105,7 @@ export default function DeskTemplatePickerPage() {
               <li key={t.id}>
                 <Link
                   href={`/service-desk/${slug}/new/${t.id}`}
-                  className="block rounded-md border border-ink-200 bg-white p-4 hover:border-brand-400 hover:bg-brand-50"
+                  className="block rounded-md border border-ink-200 bg-ink-0 p-4 hover:border-brand-400 hover:bg-brand-50"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">

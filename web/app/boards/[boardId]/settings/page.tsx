@@ -202,7 +202,7 @@ export default function BoardSettingsPage() {
         />
       }
     >
-      <div className="border-b border-ink-200 bg-white px-4 py-4 sm:px-6">
+      <div className="border-b border-ink-200 bg-ink-0 px-4 py-4 sm:px-6">
         <h1 className="text-[20px] font-semibold tracking-tight text-ink-900">
           Board settings
         </h1>

@@ -361,7 +361,7 @@ export function TaskDrawer({
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
             }}
-            className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-[18px] font-semibold leading-tight text-ink-900 outline-none hover:bg-ink-50 focus:border-ink-200 focus:bg-white focus:shadow-focus"
+            className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-[18px] font-semibold leading-tight text-ink-900 outline-none hover:bg-ink-100 focus:border-ink-200 focus:bg-ink-0 focus:shadow-focus"
           />
         </div>
 
@@ -415,7 +415,7 @@ export function TaskDrawer({
         </Field>
 
         {/* Properties panel */}
-        <section className="rounded-md border border-ink-200 bg-white">
+        <section className="rounded-md border border-ink-200 bg-ink-0">
           <div className="border-b border-ink-100 px-4 py-2 text-[10.5px] font-semibold uppercase tracking-wider text-ink-500">
             Details
           </div>
@@ -787,7 +787,7 @@ function PortalThread({ taskId }: { taskId: string }) {
               className={
                 m.from_submitter
                   ? "mr-6 rounded-md border border-brand-200 bg-brand-50 p-3 text-sm"
-                  : "ml-6 rounded-md border border-ink-200 bg-white p-3 text-sm"
+                  : "ml-6 rounded-md border border-ink-200 bg-ink-0 p-3 text-sm"
               }
             >
               <div className="flex items-center justify-between gap-2 text-[11px] text-ink-500">

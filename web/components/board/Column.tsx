@@ -54,7 +54,7 @@ export function Column({
             className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
               atLimit
                 ? "bg-danger-50 text-danger-700"
-                : "bg-white text-ink-600 ring-1 ring-inset ring-ink-200"
+                : "bg-ink-0 text-ink-600 ring-1 ring-inset ring-ink-200"
             }`}
           >
             {tasks.length}
@@ -97,7 +97,7 @@ export function Column({
         {tasks.length === 0 && (
           <button
             onClick={onAdd}
-            className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-ink-300 py-4 text-xs text-ink-500 hover:border-ink-400 hover:bg-white hover:text-ink-700"
+            className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-ink-300 py-4 text-xs text-ink-500 hover:border-ink-400 hover:bg-ink-0 hover:text-ink-700"
           >
             <IconPlus size={12} /> Add task
           </button>

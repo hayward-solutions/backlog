@@ -223,7 +223,7 @@ export default function MyTasksPage() {
         <Breadcrumbs items={[{ label: "My tasks" }]} />
       }
     >
-      <div className="border-b border-ink-200 bg-white px-4 py-4 sm:px-6">
+      <div className="border-b border-ink-200 bg-ink-0 px-4 py-4 sm:px-6">
         <h1 className="flex items-center gap-2 text-[20px] font-semibold tracking-tight text-ink-900">
           <IconList size={18} className="text-ink-500" /> My tasks
         </h1>
@@ -236,7 +236,7 @@ export default function MyTasksPage() {
 
       {/* Bucket toggles — these drive the server query, so count + refetch
           move together when the user changes them. */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-ink-200 bg-white px-3 py-2.5 sm:px-6">
+      <div className="flex flex-wrap items-center gap-2 border-b border-ink-200 bg-ink-0 px-3 py-2.5 sm:px-6">
         <BucketToggle
           label="Assigned to me"
           checked={includeAssigned}
@@ -271,7 +271,7 @@ export default function MyTasksPage() {
       </div>
 
       {/* View filters — apply client-side to whatever the server returned. */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-ink-200 bg-white px-3 py-2.5 sm:px-6">
+      <div className="flex flex-wrap items-center gap-2 border-b border-ink-200 bg-ink-0 px-3 py-2.5 sm:px-6">
         <div className="relative order-1 min-w-0 flex-1 sm:flex-initial">
           <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500">
             <IconSearch size={14} />
@@ -336,7 +336,7 @@ export default function MyTasksPage() {
         )}
       </div>
 
-      <div className="flex-1 overflow-auto bg-white">
+      <div className="flex-1 overflow-auto bg-ink-0">
         {query.isLoading && (
           <p className="px-6 py-8 text-sm text-ink-500">Loading your tasks…</p>
         )}
@@ -592,7 +592,7 @@ function BucketToggle({
       className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-sm transition ${
         checked
           ? "border-brand-300 bg-brand-50 text-brand-800"
-          : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50"
+          : "border-ink-200 bg-ink-0 text-ink-700 hover:bg-ink-100"
       }`}
       title={hint}
     >
@@ -600,7 +600,7 @@ function BucketToggle({
         className={`flex h-4 w-4 items-center justify-center rounded-[4px] border ${
           checked
             ? "border-brand-500 bg-brand-500 text-white"
-            : "border-ink-300 bg-white text-transparent"
+            : "border-ink-300 bg-ink-0 text-transparent"
         }`}
       >
         <IconCheck size={11} strokeWidth={3} />
@@ -613,7 +613,7 @@ function BucketToggle({
       />
       <span className="font-medium">{label}</span>
       {typeof count === "number" && checked && (
-        <span className="rounded-full bg-white/70 px-1.5 text-[11px] font-semibold text-brand-700">
+        <span className="rounded-full bg-ink-0/70 px-1.5 text-[11px] font-semibold text-brand-700">
           {count}
         </span>
       )}

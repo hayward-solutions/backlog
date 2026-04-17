@@ -54,7 +54,7 @@ export default function ServiceDeskTeamPageRoute() {
               <li key={d.slug}>
                 <Link
                   href={`/service-desk/${d.slug}`}
-                  className="block rounded-md border border-ink-200 bg-white p-4 hover:border-brand-400 hover:bg-brand-50"
+                  className="block rounded-md border border-ink-200 bg-ink-0 p-4 hover:border-brand-400 hover:bg-brand-50"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -98,7 +98,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-ink-50">
       <div className="mx-auto max-w-2xl px-4 py-10 sm:py-14">
-        <div className="rounded-lg border border-ink-200 bg-white p-6 shadow-soft">
+        <div className="rounded-lg border border-ink-200 bg-ink-0 p-6 shadow-soft">
           {children}
         </div>
       </div>

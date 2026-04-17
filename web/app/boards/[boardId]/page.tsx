@@ -200,7 +200,7 @@ export default function BoardPage() {
         </div>
       }
     >
-      <div className="border-b border-ink-200 bg-white px-4 py-3 sm:py-4 sm:px-6">
+      <div className="border-b border-ink-200 bg-ink-0 px-4 py-3 sm:py-4 sm:px-6">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <h1 className="truncate text-[18px] font-semibold tracking-tight text-ink-900 sm:text-[20px]">

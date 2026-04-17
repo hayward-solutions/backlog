@@ -12,9 +12,12 @@ import {
   IconList,
   IconLogout,
   IconMenu,
+  IconMoon,
   IconSettings,
+  IconSun,
   IconUsers,
 } from "@/components/ui/icons";
+import { useTheme } from "@/lib/theme";
 
 export function TopBar({
   children,
@@ -26,6 +29,7 @@ export function TopBar({
   onMenuClick?: () => void;
 }) {
   const router = useRouter();
+  const { resolved, toggle } = useTheme();
   const { data: me } = useQuery({
     queryKey: ["me"],
     queryFn: () => api<User>("/auth/me"),
@@ -40,7 +44,7 @@ export function TopBar({
   const label = me?.display_name || me?.email || "Account";
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-ink-200 bg-white/95 px-2 backdrop-blur sm:gap-4 sm:px-6">
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-ink-200 bg-ink-0/95 px-2 backdrop-blur sm:gap-4 sm:px-6">
       {onMenuClick && (
         <button
           type="button"
@@ -53,11 +57,21 @@ export function TopBar({
       )}
       <div className="min-w-0 flex-1 truncate">{children}</div>
 
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={resolved === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+        title={resolved === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-700 hover:bg-ink-100 hover:text-ink-900"
+      >
+        {resolved === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
+      </button>
+
       {me && (
         <Link
           href="/service-desk"
           title="Open the service-desk directory"
-          className="flex h-9 items-center gap-1.5 rounded-md px-2 text-sm text-ink-700 hover:bg-ink-50 hover:text-ink-900"
+          className="flex h-9 items-center gap-1.5 rounded-md px-2 text-sm text-ink-700 hover:bg-ink-100 hover:text-ink-900"
         >
           <IconLifeBuoy size={16} className="text-ink-500" />
           <span className="hidden sm:inline">Service desk</span>
@@ -71,7 +85,7 @@ export function TopBar({
           trigger={(open) => (
             <span
               className={`flex h-9 items-center gap-2 rounded-md px-1.5 pr-2 text-sm transition ${
-                open ? "bg-ink-100" : "hover:bg-ink-50"
+                open ? "bg-ink-100" : "hover:bg-ink-100"
               }`}
             >
               <Avatar name={label} seed={me.id} size={26} />

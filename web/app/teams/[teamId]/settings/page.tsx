@@ -158,7 +158,7 @@ export default function TeamSettingsPage() {
         />
       }
     >
-      <div className="border-b border-ink-200 bg-white px-4 py-4 sm:px-6">
+      <div className="border-b border-ink-200 bg-ink-0 px-4 py-4 sm:px-6">
         <h1 className="text-[20px] font-semibold tracking-tight text-ink-900">
           Team settings
         </h1>
@@ -372,7 +372,7 @@ export default function TeamSettingsPage() {
                   Invite link (copy now — shown once)
                 </div>
                 <div className="mt-2 flex items-center gap-2">
-                  <code className="flex-1 break-all rounded-xs bg-white px-2 py-1 font-mono text-xs text-ink-800">
+                  <code className="flex-1 break-all rounded-xs bg-ink-0 px-2 py-1 font-mono text-xs text-ink-800">
                     {inviteLink}
                   </code>
                   <Button size="sm" onClick={copyInvite}>

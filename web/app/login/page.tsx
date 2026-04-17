@@ -102,7 +102,7 @@ function LoginForm() {
           </div>
           <a
             href={ssoHref}
-            className="flex h-11 w-full items-center justify-center rounded-md border border-ink-200 bg-white px-4 text-sm font-medium text-ink-900 shadow-sm hover:bg-ink-50"
+            className="flex h-11 w-full items-center justify-center rounded-md border border-ink-200 bg-ink-0 px-4 text-sm font-medium text-ink-900 shadow-sm hover:bg-ink-100"
           >
             Sign in with {oidc.provider_name || "SSO"}
           </a>
@@ -114,7 +114,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-brand-50 via-white to-purple-50 px-4 py-12">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-brand-50 via-ink-0 to-purple-50 px-4 py-12">
       {/* Decorative blurs */}
       <div
         aria-hidden

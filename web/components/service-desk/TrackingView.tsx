@@ -77,7 +77,7 @@ export function TrackingView({
           <h2 className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">
             What you submitted
           </h2>
-          <dl className="mt-2 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 rounded-md border border-ink-200 bg-white p-3 text-sm">
+          <dl className="mt-2 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 rounded-md border border-ink-200 bg-ink-0 p-3 text-sm">
             {Object.entries(info.values).map(([k, v]) => (
               <div key={k} className="contents">
                 <dt className="font-semibold text-ink-600">{k}</dt>
@@ -120,7 +120,7 @@ function Thread({ messages }: { messages: DeskMessage[] }) {
           className={
             m.from_submitter
               ? "ml-6 rounded-md border border-brand-200 bg-brand-50 p-3 text-sm"
-              : "mr-6 rounded-md border border-ink-200 bg-white p-3 text-sm"
+              : "mr-6 rounded-md border border-ink-200 bg-ink-0 p-3 text-sm"
           }
         >
           <div className="flex items-center justify-between gap-2 text-[11px] text-ink-500">

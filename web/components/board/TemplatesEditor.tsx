@@ -442,7 +442,7 @@ function FieldEditor({
   const [optionsDraft, setOptionsDraft] = useState(field.options.join("\n"));
 
   return (
-    <li className="rounded-md border border-ink-200 bg-white p-3">
+    <li className="rounded-md border border-ink-200 bg-ink-0 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-col">
           <button

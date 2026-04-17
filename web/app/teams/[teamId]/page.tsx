@@ -102,7 +102,7 @@ export default function TeamPage() {
         />
       }
     >
-      <div className="border-b border-ink-200 bg-white px-4 py-4 sm:px-6">
+      <div className="border-b border-ink-200 bg-ink-0 px-4 py-4 sm:px-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             {team.data && (
@@ -173,7 +173,7 @@ export default function TeamPage() {
               <li key={b.id}>
                 <Link
                   href={`/boards/${b.id}`}
-                  className="card-hover flex h-full flex-col rounded-lg border border-ink-200 bg-white p-4"
+                  className="card-hover flex h-full flex-col rounded-lg border border-ink-200 bg-ink-0 p-4"
                 >
                   <div className="flex items-start gap-2">
                     <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-50 text-brand-600">

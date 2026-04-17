@@ -35,7 +35,7 @@ export default function AcceptInvitePage() {
   }, [token, router]);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 via-white to-purple-50 px-4">
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 via-ink-0 to-purple-50 px-4">
       <div className="w-full max-w-[400px] surface p-6 text-center shadow-card">
         <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none">

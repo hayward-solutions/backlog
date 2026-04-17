@@ -17,7 +17,7 @@ export default function TeamsPage() {
 
   return (
     <AppShell>
-      <div className="border-b border-ink-200 bg-white px-4 py-4 sm:px-6">
+      <div className="border-b border-ink-200 bg-ink-0 px-4 py-4 sm:px-6">
         <h1 className="flex items-center gap-2 text-[20px] font-semibold tracking-tight text-ink-900">
           <IconHome size={18} className="text-ink-500" /> Your teams
         </h1>
@@ -46,7 +46,7 @@ export default function TeamsPage() {
               <li key={t.id}>
                 <Link
                   href={`/teams/${t.id}`}
-                  className="card-hover block rounded-lg border border-ink-200 bg-white p-4"
+                  className="card-hover block rounded-lg border border-ink-200 bg-ink-0 p-4"
                 >
                   <div className="flex items-start gap-3">
                     <Avatar name={t.name} seed={t.id} size={40} />

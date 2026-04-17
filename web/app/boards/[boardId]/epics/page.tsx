@@ -168,7 +168,7 @@ export default function BoardEpicsPage() {
         />
       }
     >
-      <div className="border-b border-ink-200 bg-white px-4 py-4 sm:px-6">
+      <div className="border-b border-ink-200 bg-ink-0 px-4 py-4 sm:px-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-[20px] font-semibold tracking-tight text-ink-900">
@@ -191,7 +191,7 @@ export default function BoardEpicsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-ink-200 bg-white px-4 py-2.5 sm:px-6">
+      <div className="flex items-center gap-2 border-b border-ink-200 bg-ink-0 px-4 py-2.5 sm:px-6">
         {data.labels.length > 0 && (
           <Select
             value={labelFilter}
@@ -212,7 +212,7 @@ export default function BoardEpicsPage() {
         </span>
       </div>
 
-      <div className="flex-1 overflow-auto bg-white">
+      <div className="flex-1 overflow-auto bg-ink-0">
         <table className="w-full min-w-[1000px] border-separate border-spacing-0 text-sm">
           <thead className="sticky top-0 z-10 bg-ink-50 text-left text-[10.5px] font-semibold uppercase tracking-wider text-ink-600">
             <tr>

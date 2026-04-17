@@ -31,14 +31,14 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 animate-fade-in sm:items-center sm:p-4">
       <div
-        className="absolute inset-0 bg-ink-900/50 backdrop-blur-[1px]"
+        className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
         onClick={onClose}
         aria-hidden
       />
       <div
         role="dialog"
         aria-modal="true"
-        className="relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-lg bg-white shadow-overlay animate-scale-in sm:max-h-[min(90vh,800px)] sm:rounded-lg"
+        className="relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-lg bg-ink-0 shadow-overlay animate-scale-in sm:max-h-[min(90vh,800px)] sm:rounded-lg"
         style={{ maxWidth: width }}
       >
         <header className="flex shrink-0 items-center justify-between border-b border-ink-200 px-5 py-3">
@@ -91,11 +91,11 @@ export function Drawer({
 
   return (
     <div className="fixed inset-0 z-50 flex animate-fade-in">
-      <div className="flex-1 bg-ink-900/40 backdrop-blur-[1px]" onClick={onClose} />
+      <div className="flex-1 bg-black/40 backdrop-blur-[1px]" onClick={onClose} />
       <aside
         role="dialog"
         aria-modal="true"
-        className="flex h-full flex-col overflow-hidden bg-white shadow-drawer animate-slide-in-right"
+        className="flex h-full flex-col overflow-hidden bg-ink-0 shadow-drawer animate-slide-in-right"
         style={{ width: `min(100vw, ${width}px)` }}
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-ink-200 px-5 py-3">
